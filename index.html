@@ -52,15 +52,17 @@
             flex-direction: column;
             flex: 1 1 calc(50% - 0.375rem);
             min-width: 200px;
-            justify-content: space-between;
             gap: 0.75rem;
-        }
-        .right-panel {
-            padding-top: 1rem;
         }
         .slider-group, .input-group, .example-functions {
             display: flex;
             flex-direction: column;
+        }
+        .bottom-group {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
         }
         .input-group.has-error-message {
             position: relative;
@@ -176,15 +178,17 @@
                 <div id="errorMessage" class="text-red-400"></div>
             </div>
 
-            <div class="input-group">
-                <label for="lineDisplayMode">Show Lines between Points:</label>
-                <select id="lineDisplayMode">
-                    <option value="none">No Lines</option>
-                    <option value="show">Show Lines</option>
-                </select>
-            </div>
+            <div class="bottom-group">
+                <div class="input-group">
+                    <label for="lineDisplayMode">Show Lines between Points:</label>
+                    <select id="lineDisplayMode">
+                        <option value="none">No Lines</option>
+                        <option value="show">Show Lines</option>
+                    </select>
+                </div>
 
-            <button id="applyFunctionBtn" class="button-group-single">Apply Function</button>
+                <button id="applyFunctionBtn" class="button-group-single">Apply Function</button>
+            </div>
         </div>
 
         <div class="right-panel">
@@ -195,7 +199,7 @@
 
             <div class="slider-group">
                 <label for="density">Point Density: <span id="densityDisplay" class="value-display">10</span></label>
-                <input type="range" id="density" min="2" max="25" step="1" value="10">
+                <input type="range" id="density" min="2" max="30" step="1" value="10">
             </div>
 
             <div class="slider-group">
@@ -203,7 +207,20 @@
                 <input type="range" id="pointSizeFactor" min="0.1" max="5.0" step="0.01" value="1.0">
             </div>
 
-            <button id="toggleViewBtn" class="button-group-single">Show Mapped View</button>
+            <div class="bottom-group">
+                <div class="input-group">
+                    <label for="startingArrangement">Starting Arrangement:</label>
+                    <select id="startingArrangement">
+                        <option value="grid3D">Grid</option>
+                        <option value="plane2D">Plane</option>
+                        <option value="sphere">Sphere</option>
+                        <option value="cubeEdges">Cube Edges</option>
+                        <option value="cubeFaces">Cube Faces</option>
+                        <option value="grid4D">4D Grid</option>
+                    </select>
+                </div>
+                <button id="toggleViewBtn" class="button-group-single">Show Mapped View</button>
+            </div>
         </div>
     </div>
 
@@ -220,6 +237,7 @@
         let currentFunction = "q^2";
         let showMappedView = true;
         let lineDisplayMode = "none";
+        let startingArrangement = "grid3D"; // New variable for starting arrangement
 
         let originalPointPositions = [];
         let originalPointColors = [];
@@ -615,6 +633,10 @@
             lineDisplayMode = 'none';
             lineDisplayModeSelect.value = lineDisplayMode;
 
+            const startingArrangementSelect = document.getElementById('startingArrangement');
+            startingArrangement = 'grid3D';
+            startingArrangementSelect.value = startingArrangement;
+
             createVisualization();
             updateDisplay();
 
@@ -623,7 +645,10 @@
             document.getElementById('wValue').addEventListener('input', (event) => {
                 wFixed = parseFloat(event.target.value);
                 document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
-                createVisualization();
+                // Only recreate visualization if not in 4D grid mode, where W is dynamic
+                if (startingArrangement !== 'grid4D') {
+                    createVisualization();
+                }
                 updateDisplay();
             });
 
@@ -656,6 +681,21 @@
                 lineDisplayMode = event.target.value;
                 updateDisplay();
             });
+
+            startingArrangementSelect.addEventListener('change', (event) => {
+                startingArrangement = event.target.value;
+                // Enable/disable wValue slider based on 4D Grid selection
+                const wValueSlider = document.getElementById('wValue');
+                wValueSlider.disabled = (startingArrangement === 'grid4D');
+                if (startingArrangement === 'grid4D') {
+                    wValueSlider.style.opacity = '0.3'; // Visually indicate disabled
+                } else {
+                    wValueSlider.style.opacity = '1.0';
+                }
+
+                createVisualization();
+                updateDisplay();
+            });
         }
 
         function createVisualization() {
@@ -672,10 +712,15 @@
             mappedLineIndices = [];
 
             const numPoints = density;
-            const step = 2.0 / (numPoints - 1);
+            const step = 2.0 / (numPoints - 1); // For grid-based arrangements spanning -1 to 1
 
-            const minWInputForColor = parseFloat(document.getElementById('wValue').min);
-            const maxWInputForColor = parseFloat(document.getElementById('wValue').max);
+            let minWInputForColor = parseFloat(document.getElementById('wValue').min);
+            let maxWInputForColor = parseFloat(document.getElementById('wValue').max);
+
+            if (startingArrangement === 'grid4D') {
+                 minWInputForColor = -1; // Override for 4D grid
+                 maxWInputForColor = 1;  // Override for 4D grid
+            }
 
             let minOutputW = Infinity;
             let maxOutputW = -Infinity;
@@ -683,30 +728,154 @@
             const inputQuaternions = [];
             const outputQuaternions = [];
 
-            for (let i = 0; i < numPoints; i++) {
-                const x_in = -1 + i * step;
-                for (let j = 0; j < numPoints; j++) {
-                    const y_in = -1 + j * step;
-                    for (let k = 0; k < numPoints; k++) {
-                        const z_in = -1 + k * step;
-
-                        const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
-                        inputQuaternions.push(q_in);
-
-                        let q_out;
-                        try {
-                            q_out = evaluateQuaternionExpression(currentFunction, q_in);
-                        } catch (e) {
-                            // Error handling already in evaluateQuaternionExpression, just prevent further processing
-                            return;
+            if (startingArrangement === 'grid3D') {
+                for (let i = 0; i < numPoints; i++) {
+                    const x_in = -1 + i * step;
+                    for (let j = 0; j < numPoints; j++) {
+                        const y_in = -1 + j * step;
+                        for (let k = 0; k < numPoints; k++) {
+                            const z_in = -1 + k * step;
+                            const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
+                            inputQuaternions.push(q_in);
                         }
-                        outputQuaternions.push(q_out);
+                    }
+                }
+            } else if (startingArrangement === 'plane2D') {
+                const fixedZ = 0; 
+                for (let i = 0; i < numPoints; i++) {
+                    const x_in = -1 + i * step;
+                    for (let j = 0; j < numPoints; j++) {
+                        const y_in = -1 + j * step;
+                        const q_in = new Quaternion(wFixed, x_in, y_in, fixedZ);
+                        inputQuaternions.push(q_in);
+                    }
+                }
+            } else if (startingArrangement === 'sphere') {
+                const radius = 1;
+                const numSpherePoints = density * density; // Adjust as needed for better distribution
+                for (let i = 0; i < numSpherePoints; i++) {
+                    const phi = Math.acos(1 - 2 * (i / numSpherePoints));
+                    const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+
+                    const x_in = radius * Math.cos(theta) * Math.sin(phi);
+                    const y_in = radius * Math.sin(theta) * Math.sin(phi);
+                    const z_in = radius * Math.cos(phi);
+                    
+                    const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
+                    inputQuaternions.push(q_in);
+                }
+            } else if (startingArrangement === 'cubeEdges') {
+                const side = 2.0;
+                const halfSide = side / 2;
+                const pointsPerEdge = density; // Number of segments per edge
+
+                // Define vertices of the cube
+                const vertices = [];
+                for (let i = -1; i <= 1; i += 2) {
+                    for (let j = -1; j <= 1; j += 2) {
+                        for (let k = -1; k <= 1; k += 2) {
+                            vertices.push(new THREE.Vector3(i * halfSide, j * halfSide, k * halfSide));
+                        }
+                    }
+                }
+
+                // Define edges by vertex indices (0-7)
+                const edges = [
+                    [0, 1], [1, 3], [3, 2], [2, 0], // Bottom face
+                    [4, 5], [5, 7], [7, 6], [6, 4], // Top face
+                    [0, 4], [1, 5], [3, 7], [2, 6]  // Vertical edges
+                ];
+
+                const addedPointsMap = new Map(); // To avoid duplicate points
+
+                edges.forEach(edge => {
+                    const v1 = vertices[edge[0]];
+                    const v2 = vertices[edge[1]];
+
+                    for (let i = 0; i < pointsPerEdge; i++) {
+                        const t = i / (pointsPerEdge - 1);
+                        const x_in = v1.x * (1 - t) + v2.x * t;
+                        const y_in = v1.y * (1 - t) + v2.y * t;
+                        const z_in = v1.z * (1 - t) + v2.z * t;
                         
-                        minOutputW = Math.min(minOutputW, q_out.w);
-                        maxOutputW = Math.max(maxOutputW, q_out.w);
+                        const pointKey = `${x_in.toFixed(4)},${y_in.toFixed(4)},${z_in.toFixed(4)}`;
+                        if (!addedPointsMap.has(pointKey)) {
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
+                            addedPointsMap.set(pointKey, inputQuaternions.length - 1);
+                        }
+                    }
+                });
+
+            } else if (startingArrangement === 'cubeFaces') {
+                const side = 2.0;
+                const halfSide = side / 2;
+                const pointsPerFaceDim = numPoints; // Number of points along one dimension of a face
+
+                // Front/Back faces (z = +-halfSide)
+                for (let i = 0; i < pointsPerFaceDim; i++) {
+                    const x_in = -halfSide + i * step;
+                    for (let j = 0; j < pointsPerFaceDim; j++) {
+                        const y_in = -halfSide + j * step;
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide)); // Front
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide)); // Back
+                    }
+                }
+                // Top/Bottom faces (y = +-halfSide)
+                for (let i = 0; i < pointsPerFaceDim; i++) {
+                    const x_in = -halfSide + i * step;
+                    for (let j = 0; j < pointsPerFaceDim; j++) {
+                        const z_in = -halfSide + j * step;
+                        if (z_in !== halfSide && z_in !== -halfSide) { // Avoid duplicating points with front/back faces
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in)); // Top
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in)); // Bottom
+                        }
+                    }
+                }
+                // Left/Right faces (x = +-halfSide)
+                for (let i = 0; i < pointsPerFaceDim; i++) {
+                    const y_in = -halfSide + i * step;
+                    for (let j = 0; j < pointsPerFaceDim; j++) {
+                        const z_in = -halfSide + j * step;
+                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) { // Avoid duplication
+                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in)); // Right
+                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in)); // Left
+                        }
+                    }
+                }
+            } else if (startingArrangement === 'grid4D') {
+                const grid4DPoints = density;
+                const step4D = 2.0 / (grid4DPoints - 1); // Spanning -1 to 1 for each dimension
+
+                for (let i = 0; i < grid4DPoints; i++) {
+                    const w_in = -1 + i * step4D;
+                    for (let j = 0; j < grid4DPoints; j++) {
+                        const x_in = -1 + j * step4D;
+                        for (let l = 0; l < grid4DPoints; l++) {
+                            const y_in = -1 + l * step4D;
+                            for (let m = 0; m < grid4DPoints; m++) {
+                                const z_in = -1 + m * step4D;
+                                inputQuaternions.push(new Quaternion(w_in, x_in, y_in, z_in));
+                            }
+                        }
                     }
                 }
             }
+
+
+            for(const q_in of inputQuaternions) {
+                let q_out;
+                try {
+                    q_out = evaluateQuaternionExpression(currentFunction, q_in);
+                } catch (e) {
+                    // Error handling already in evaluateQuaternionExpression, just prevent further processing
+                    return;
+                }
+                outputQuaternions.push(q_out);
+                
+                minOutputW = Math.min(minOutputW, q_out.w);
+                maxOutputW = Math.max(maxOutputW, q_out.w);
+            }
+
 
             if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
                 // Set a default range if all output W values are the same or there are no points
@@ -758,23 +927,199 @@
                 }
             };
 
-            for (let i = 0; i < numPoints; i++) {
-                for (let j = 0; j < numPoints; j++) {
-                    for (let k = 0; k < numPoints; k++) {
-                        const currentLinearIdx = i * numPoints * numPoints + j * numPoints + k;
-                        const q_current_in = inputQuaternions[currentLinearIdx];
+            // Helper to get index of a quaternion in the inputQuaternions array based on approximate values
+            const getQuaternionIndex = (w, x, y, z, tolerance = 0.0001) => {
+                for (let i = 0; i < inputQuaternions.length; i++) {
+                    const q = inputQuaternions[i];
+                    if (Math.abs(q.w - w) < tolerance &&
+                        Math.abs(q.x - x) < tolerance &&
+                        Math.abs(q.y - y) < tolerance &&
+                        Math.abs(q.z - z) < tolerance) {
+                        return i;
+                    }
+                }
+                return -1;
+            };
 
+            // Line connections based on starting arrangement
+            if (startingArrangement === 'grid3D') {
+                for (let i = 0; i < numPoints; i++) {
+                    const x_in = -1 + i * step;
+                    for (let j = 0; j < numPoints; j++) {
+                        const y_in = -1 + j * step;
+                        for (let k = 0; k < numPoints; k++) {
+                            const z_in = -1 + k * step;
+                            const q_current_in = new Quaternion(wFixed, x_in, y_in, z_in);
+
+                            // Connect along X
+                            if (i < numPoints - 1) {
+                                const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, z_in);
+                                addLineSegment(q_current_in, q_nextX_in);
+                            }
+                            // Connect along Y
+                            if (j < numPoints - 1) {
+                                const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, z_in);
+                                addLineSegment(q_current_in, q_nextY_in);
+                            }
+                            // Connect along Z
+                            if (k < numPoints - 1) {
+                                const q_nextZ_in = new Quaternion(wFixed, x_in, y_in, z_in + step);
+                                addLineSegment(q_current_in, q_nextZ_in);
+                            }
+                        }
+                    }
+                }
+            } else if (startingArrangement === 'plane2D') {
+                const fixedZ = 0;
+                for (let i = 0; i < numPoints; i++) {
+                    const x_in = -1 + i * step;
+                    for (let j = 0; j < numPoints; j++) {
+                        const y_in = -1 + j * step;
+                        const q_current_in = new Quaternion(wFixed, x_in, y_in, fixedZ);
+
+                        // Connect along X
                         if (i < numPoints - 1) {
-                            const q_nextX_in = inputQuaternions[currentLinearIdx + numPoints * numPoints];
+                            const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, fixedZ);
                             addLineSegment(q_current_in, q_nextX_in);
                         }
+                        // Connect along Y
                         if (j < numPoints - 1) {
-                            const q_nextY_in = inputQuaternions[currentLinearIdx + numPoints];
+                            const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, fixedZ);
                             addLineSegment(q_current_in, q_nextY_in);
                         }
-                        if (k < numPoints - 1) {
-                            const q_nextZ_in = inputQuaternions[currentLinearIdx + 1];
-                            addLineSegment(q_current_in, q_nextZ_in);
+                    }
+                }
+            } else if (startingArrangement === 'sphere') {
+                // Lines are generally not drawn for sphere for simplicity, as it requires complex neighbor finding
+            } else if (startingArrangement === 'cubeEdges') {
+                const side = 2.0;
+                const halfSide = side / 2;
+                const pointsPerEdge = density;
+                const edgeStep = side / (pointsPerEdge - 1);
+                const tolerance = 0.001;
+
+                // Define cube vertices
+                const vertices = [];
+                for (let i = -1; i <= 1; i += 2) {
+                    for (let j = -1; j <= 1; j += 2) {
+                        for (let k = -1; k <= 1; k += 2) {
+                            vertices.push(new THREE.Vector3(i * halfSide, j * halfSide, k * halfSide));
+                        }
+                    }
+                }
+
+                // Define edges as pairs of vertex indices
+                const edges = [
+                    [0, 1], [1, 3], [3, 2], [2, 0], // Bottom face
+                    [4, 5], [5, 7], [7, 6], [6, 4], // Top face
+                    [0, 4], [1, 5], [3, 7], [2, 6]  // Vertical edges
+                ];
+
+                edges.forEach(edge => {
+                    const v1 = vertices[edge[0]];
+                    const v2 = vertices[edge[1]];
+
+                    for (let i = 0; i < pointsPerEdge - 1; i++) { // Connect i to i+1
+                        const t1 = i / (pointsPerEdge - 1);
+                        const t2 = (i + 1) / (pointsPerEdge - 1);
+
+                        const q1_x = v1.x * (1 - t1) + v2.x * t1;
+                        const q1_y = v1.y * (1 - t1) + v2.y * t1;
+                        const q1_z = v1.z * (1 - t1) + v2.z * t1;
+                        const q1 = new Quaternion(wFixed, q1_x, q1_y, q1_z);
+                        
+                        const q2_x = v1.x * (1 - t2) + v2.x * t2;
+                        const q2_y = v1.y * (1 - t2) + v2.y * t2;
+                        const q2_z = v1.z * (1 - t2) + v2.z * t2;
+                        const q2 = new Quaternion(wFixed, q2_x, q2_y, q2_z);
+
+                        addLineSegment(q1, q2);
+                    }
+                });
+            } else if (startingArrangement === 'cubeFaces') {
+                const side = 2.0;
+                const halfSide = side / 2;
+                const pointsPerFaceDim = numPoints;
+                const faceStep = side / (pointsPerFaceDim - 1);
+                
+                const generateFaceLines = (fixedAxis, fixedVal) => {
+                    for (let i = 0; i < pointsPerFaceDim; i++) {
+                        const coord1_val = -halfSide + i * faceStep;
+                        for (let j = 0; j < pointsPerFaceDim; j++) {
+                            const coord2_val = -halfSide + j * faceStep;
+
+                            let q_current;
+                            if (fixedAxis === 'x') q_current = new Quaternion(wFixed, fixedVal, coord1_val, coord2_val);
+                            else if (fixedAxis === 'y') q_current = new Quaternion(wFixed, coord1_val, fixedVal, coord2_val);
+                            else q_current = new Quaternion(wFixed, coord1_val, coord2_val, fixedVal);
+
+                            // Connect along first varying dimension
+                            if (i < pointsPerFaceDim - 1) {
+                                let q_next;
+                                const next_coord1_val = -halfSide + (i + 1) * faceStep;
+                                if (fixedAxis === 'x') q_next = new Quaternion(wFixed, fixedVal, next_coord1_val, coord2_val);
+                                else if (fixedAxis === 'y') q_next = new Quaternion(wFixed, next_coord1_val, fixedVal, coord2_val);
+                                else q_next = new Quaternion(wFixed, next_coord1_val, coord2_val, fixedVal);
+                                addLineSegment(q_current, q_next);
+                            }
+                            // Connect along second varying dimension
+                            if (j < pointsPerFaceDim - 1) {
+                                let q_next;
+                                const next_coord2_val = -halfSide + (j + 1) * faceStep;
+                                if (fixedAxis === 'x') q_next = new Quaternion(wFixed, fixedVal, coord1_val, next_coord2_val);
+                                else if (fixedAxis === 'y') q_next = new Quaternion(wFixed, coord1_val, fixedVal, next_coord2_val);
+                                else q_next = new Quaternion(wFixed, coord1_val, next_coord2_val, fixedVal);
+                                addLineSegment(q_current, q_next);
+                            }
+                        }
+                    }
+                };
+                
+                // Front and Back faces
+                generateFaceLines('z', halfSide);
+                generateFaceLines('z', -halfSide);
+                // Top and Bottom faces
+                generateFaceLines('y', halfSide);
+                generateFaceLines('y', -halfSide);
+                // Right and Left faces
+                generateFaceLines('x', halfSide);
+                generateFaceLines('x', -halfSide);
+
+            } else if (startingArrangement === 'grid4D') {
+                const grid4DPoints = density;
+                const step4D = 2.0 / (grid4DPoints - 1);
+
+                for (let i = 0; i < grid4DPoints; i++) {
+                    const w_in = -1 + i * step4D;
+                    for (let j = 0; j < grid4DPoints; j++) {
+                        const x_in = -1 + j * step4D;
+                        for (let l = 0; l < grid4DPoints; l++) {
+                            const y_in = -1 + l * step4D;
+                            for (let m = 0; m < grid4DPoints; m++) {
+                                const z_in = -1 + m * step4D;
+                                const q_current_in = new Quaternion(w_in, x_in, y_in, z_in);
+
+                                // Connect along W
+                                if (i < grid4DPoints - 1) {
+                                    const q_nextW_in = new Quaternion(w_in + step4D, x_in, y_in, z_in);
+                                    addLineSegment(q_current_in, q_nextW_in);
+                                }
+                                // Connect along X
+                                if (j < grid4DPoints - 1) {
+                                    const q_nextX_in = new Quaternion(w_in, x_in + step4D, y_in, z_in);
+                                    addLineSegment(q_current_in, q_nextX_in);
+                                }
+                                // Connect along Y
+                                if (l < grid4DPoints - 1) {
+                                    const q_nextY_in = new Quaternion(w_in, x_in, y_in + step4D, z_in);
+                                    addLineSegment(q_current_in, q_nextY_in);
+                                }
+                                // Connect along Z
+                                if (m < grid4DPoints - 1) {
+                                    const q_nextZ_in = new Quaternion(w_in, x_in, y_in, z_in + step4D);
+                                    addLineSegment(q_current_in, q_nextZ_in);
+                                }
+                            }
                         }
                     }
                 }
