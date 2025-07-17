@@ -181,7 +181,7 @@
         
         <div class="left-panel">
             <div class="example-functions">
-                Operations supported: (+), (-), (*), (/), (^ integer), norm(), conj(), inv()<br>
+                Operations supported: (+), (-), (*), (/), (^ integer), norm(), conj(), inv(), re(), im(), w_comp(), x_comp(), y_comp(), z_comp()<br>
                 Variables: q (input quaternion), i, j, k
             </div>
             <div class="input-group has-error-message">
@@ -369,6 +369,32 @@
                 if (normSq === 0) throw new Error("Cannot compute inverse of zero quaternion.");
                 return this.conjugate().scalarMultiply(1 / normSq);
             }
+
+            // NEW: Real and Imaginary Part functions (returning Quaternion objects)
+            re() {
+                return new Quaternion(this.w, 0, 0, 0);
+            }
+
+            im() {
+                return new Quaternion(0, this.x, this.y, this.z);
+            }
+
+            // NEW: Individual component functions (returning numbers)
+            w_comp() {
+                return this.w;
+            }
+
+            x_comp() {
+                return this.x;
+            }
+
+            y_comp() {
+                return this.y;
+            }
+
+            z_comp() {
+                return this.z;
+            }
         }
 
         function tokenize(expression) {
@@ -391,40 +417,29 @@
                     continue;
                 }
 
-                // Handle single-character quaternion units and 'q' variable
-                if (char === 'q') {
-                    tokens.push({ type: 'Q' });
-                    i++;
-                    continue;
-                } else if (char === 'i') {
-                    tokens.push({ type: 'I' });
-                    i++;
-                    continue;
-                } else if (char === 'j') {
-                    tokens.push({ type: 'J' });
-                    i++;
-                    continue;
-                } else if (char === 'k') {
-                    tokens.push({ type: 'K' });
-                    i++;
-                    continue;
-                }
-                
-                // Handle multi-character functions (norm, conj, inv)
-                if (/[a-zA-Z]/.test(char)) {
+                // MODIFIED: Handle multi-character functions and single-character variables/units within one block
+                if (/[a-zA-Z_]/.test(char)) {
                     let identifier = '';
-                    while (i < expression.length && /[a-zA-Z]/.test(expression[i])) {
+                    while (i < expression.length && /[a-zA-Z_]/.test(expression[i])) {
                         identifier += expression[i];
                         i++;
                     }
-                    if (['norm', 'conj', 'inv'].includes(identifier)) {
+                    if (identifier === 'q') {
+                        tokens.push({ type: 'Q' });
+                    } else if (identifier === 'i') {
+                        tokens.push({ type: 'I' });
+                    } else if (identifier === 'j') {
+                        tokens.push({ type: 'J' });
+                    } else if (identifier === 'k') {
+                        tokens.push({ type: 'K' });
+                    } else if (['norm', 'conj', 'inv', 're', 'im', 'w_comp', 'x_comp', 'y_comp', 'z_comp'].includes(identifier)) {
                         tokens.push({ type: 'FUNCTION', value: identifier });
                     } else {
                         throw new Error(`Unknown identifier: ${identifier}`);
                     }
                     continue;
                 }
-
+                
                 if (['+', '-', '*', '/', '^', '(', ')'].includes(char)) {
                     tokens.push({ type: char });
                     i++;
@@ -554,6 +569,13 @@
                     case 'norm': return new Quaternion(arg.norm(), 0, 0, 0);
                     case 'conj': return arg.conjugate();
                     case 'inv': return arg.inverse();
+                    case 're': return arg.re(); // Returns a Quaternion (w, 0, 0, 0)
+                    case 'im': return arg.im(); // Returns a Quaternion (0, x, y, z)
+                    // NEW: Cases for individual component extraction
+                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0); // Returns scalar w as (w, 0, 0, 0)
+                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0); // Returns scalar x as (x, 0, 0, 0)
+                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0); // Returns scalar y as (y, 0, 0, 0)
+                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0); // Returns scalar z as (z, 0, 0, 0)
                     default: throw new Error(`Unknown function: ${funcName}`);
                 }
             } else if (token.type === '(') {
@@ -1333,4 +1355,4 @@
         };
     </script>
 </body>
-</html>
+</html></html>
