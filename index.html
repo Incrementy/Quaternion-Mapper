@@ -199,8 +199,7 @@
                     </select>
                 </div>
 
-                <button id="applyFunctionBtn" class="button-group-single">Apply Function</button>
-            </div>
+                </div>
         </div>
 
         <div class="right-panel">
@@ -273,6 +272,9 @@
 
         // NEW: Global variable to store current point positions (3D) for efficient access in onMouseMove
         let currentPointPositionsVector3 = [];
+
+        // Orthographic camera frustum size (no longer directly used but kept as an example for orthographic)
+        const frustumSize = 2.5;
 
         function createCircleTexture() {
             const size = 64;
@@ -594,11 +596,16 @@
 
         function evaluateQuaternionExpression(expression, q_in) {
             const errorMessageDiv = document.getElementById('errorMessage');
-            errorMessageDiv.textContent = '';
+            errorMessageDiv.textContent = ''; // Clear previous error
 
             try {
                 expression = expression.trim().toLowerCase();
-                return parse(expression, q_in);
+                const result = parse(expression, q_in);
+                // Basic check to ensure the result is a Quaternion (or something that can be a Quaternion)
+                if (!(result instanceof Quaternion)) {
+                    throw new Error("Function must return a quaternion.");
+                }
+                return result;
             } catch (error) {
                 errorMessageDiv.textContent = `Error: ${error.message}`;
                 return new Quaternion(0, 0, 0, 0); // Return a zero quaternion on error
@@ -649,6 +656,7 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
+            // REVERTED: Use PerspectiveCamera
             camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera.position.z = 3.33;
 
@@ -715,10 +723,16 @@
                 updateDisplay();
             });
 
-            document.getElementById('applyFunctionBtn').addEventListener('click', () => {
-                currentFunction = document.getElementById('functionInput').value;
-                createVisualization();
-                updateDisplay();
+            // NEW: Automatic function application on input change
+            document.getElementById('functionInput').addEventListener('input', (event) => {
+                currentFunction = event.target.value;
+                const errorMessageDiv = document.getElementById('errorMessage');
+                // Attempt to parse with a dummy quaternion to check for syntax errors
+                evaluateQuaternionExpression(currentFunction, new Quaternion(0,0,0,0)); 
+                if (errorMessageDiv.textContent === '') { // Only update if no error
+                    createVisualization();
+                    updateDisplay();
+                }
             });
 
             document.getElementById('toggleViewBtn').addEventListener('click', () => {
@@ -1344,6 +1358,7 @@
 
         function onWindowResize() {
             const container = document.getElementById('canvas-container');
+            // REVERTED: Update PerspectiveCamera aspect ratio on resize
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
@@ -1355,4 +1370,4 @@
         };
     </script>
 </body>
-</html></html>
+</html>
