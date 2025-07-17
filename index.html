@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quaternion Mapping Visualization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #000;
+            color: #e2e8f0;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            border-radius: 0.45rem;
+            margin: 1rem;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .controls-container {
+            background-color: rgba(26, 26, 26, 0.6);
+            padding: 0.5rem;
+            border-radius: 0.45rem;
+            margin: 0.5rem auto;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 95%;
+        }
+        .left-panel, .right-panel {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 calc(50% - 0.375rem);
+            min-width: 200px;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        .right-panel {
+            padding-top: 1rem;
+        }
+        .slider-group, .input-group, .example-functions {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group.has-error-message {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+        .slider-group label, .input-group label {
+            margin-bottom: 0.2rem;
+            font-weight: bold;
+            color: #a0a0a0;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #333;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        .slider-group input[type="range"]:hover {
+            opacity: 1;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #bbb;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .slider-group input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #bbb;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .value-display {
+            font-weight: normal;
+            margin-left: 0.5rem;
+            color: #ddd;
+        }
+        .input-group input[type="text"],
+        .input-group select {
+            padding: 0.5rem;
+            border-radius: 0.3rem;
+            border: 1px solid #333;
+            background-color: #222;
+            color: #e2e8f0;
+            width: 100%;
+        }
+        .input-group select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23a0a0a0%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.3%203.2-16.1%208.1-3.9%204.9-4.8%2011.8-2.6%2017.9l139.3%20220.4c3.9%206.2%2010.8%209.6%2018.2%209.6s14.3-3.4%2018.2-9.6L289.6%2090.8c2.2-6.1%201.3-13-2.6-17.9z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 0.7em top 50%, 0 0;
+            background-size: 0.65em auto, 100%;
+        }
+        .button-group-single {
+            padding: 0.6rem 1rem;
+            border-radius: 0.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            background-color: #444;
+            color: white;
+        }
+        .button-group-single:hover {
+            transform: translateY(-1px);
+            background-color: #666;
+        }
+        .button-group-single:active {
+            transform: translateY(0);
+            background-color: #444;
+        }
+        #errorMessage {
+            color: #fc8181;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            font-size: 0.75rem;
+            transform: translateY(100%);
+            padding-top: 0.2rem;
+        }
+        .example-functions {
+            font-size: 0.85rem;
+            color: #a0a0a0;
+            line-height: 1.3;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="controls-container">
+        
+        <div class="left-panel">
+            <div class="example-functions">
+                Operations: (+), (-), (*), (/), (^ integer), norm(), conj(), inv()
+                Ex: q^3-q^2
+            </div>
+            <div class="input-group has-error-message">
+                <label for="functionInput">Function:</label>
+                <input type="text" id="functionInput" value="q^2">
+                <div id="errorMessage" class="text-red-400"></div>
+            </div>
+
+            <div class="input-group">
+                <label for="lineDisplayMode">Show Lines between Points:</label>
+                <select id="lineDisplayMode">
+                    <option value="none">No Lines</option>
+                    <option value="show">Show Lines</option>
+                </select>
+            </div>
+
+            <button id="applyFunctionBtn" class="button-group-single">Apply Function</button>
+        </div>
+
+        <div class="right-panel">
+            <div class="slider-group">
+                <label for="wValue">Input w Value: <span id="wValueDisplay" class="value-display">0.5</span></label>
+                <input type="range" id="wValue" min="-2" max="2" step="0.01" value="0.5">
+            </div>
+
+            <div class="slider-group">
+                <label for="density">Point Density: <span id="densityDisplay" class="value-display">10</span></label>
+                <input type="range" id="density" min="2" max="25" step="1" value="10">
+            </div>
+
+            <div class="slider-group">
+                <label for="pointSizeFactor">Point Size Factor: <span id="pointSizeFactorDisplay" class="value-display">1.00</span></label>
+                <input type="range" id="pointSizeFactor" min="0.1" max="5.0" step="0.01" value="1.0">
+            </div>
+
+            <button id="toggleViewBtn" class="button-group-single">Show Mapped View</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let pointsMesh;
+        let linesMesh;
+        let wFixed = 0.5;
+        let density = 10;
+        let pointSizeFactor = 1.0;
+        let currentFunction = "q^2";
+        let showMappedView = true;
+        let lineDisplayMode = "none";
+
+        let originalPointPositions = [];
+        let originalPointColors = [];
+        let originalLinePositions = [];
+        let originalLineColors = [];
+        let originalLineIndices = [];
+
+        let mappedPointPositions = [];
+        let mappedPointColors = [];
+        let mappedLinePositions = [];
+        let mappedLineColors = [];
+        let mappedLineIndices = [];
+
+        let currentTokenIndex = 0;
+        let tokens = [];
+        let q_input_for_parser;
+
+        function createCircleTexture() {
+            const size = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
+            context.beginPath();
+            context.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+            context.fillStyle = 'white';
+            context.fill();
+            return new THREE.CanvasTexture(canvas);
+        }
+        let circleTexture;
+
+        class Quaternion {
+            constructor(w, x, y, z) {
+                this.w = w;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+
+            multiply(q2) {
+                const q1 = this;
+                const w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z;
+                const x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y;
+                const y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x;
+                const z = q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w;
+                return new Quaternion(w, x, y, z);
+            }
+
+            add(other) {
+                if (other instanceof Quaternion) {
+                    return new Quaternion(this.w + other.w, this.x + other.x, this.y + other.y, this.z + other.z);
+                } else if (typeof other === 'number') {
+                    return new Quaternion(this.w + other, this.x, this.y, this.z);
+                }
+                throw new Error("Can only add Quaternion or number to Quaternion.");
+            }
+
+            subtract(other) {
+                if (other instanceof Quaternion) {
+                    return new Quaternion(this.w - other.w, this.x - other.x, this.y - other.y, this.z - other.z);
+                } else if (typeof other === 'number') {
+                    return new Quaternion(this.w - other, this.x, this.y, this.z);
+                }
+                throw new Error("Can only subtract Quaternion or number from Quaternion.");
+            }
+
+            scalarMultiply(scalar) {
+                return new Quaternion(this.w * scalar, this.x * scalar, this.y * scalar, this.z * scalar);
+            }
+
+            divide(q2) {
+                const normSq = q2.w * q2.w + q2.x * q2.x + q2.y * q2.y + q2.z * q2.z;
+                if (normSq === 0) throw new Error("Division by zero quaternion.");
+                const q2_inv = new Quaternion(q2.w / normSq, -q2.x / normSq, -q2.y / normSq, -q2.z / normSq);
+                return this.multiply(q2_inv);
+            }
+
+            pow(n) {
+                if (n === 0) return new Quaternion(1, 0, 0, 0);
+                if (n === 1) return this;
+                if (n < 0) {
+                    const inv = this.inverse();
+                    return inv.pow(Math.abs(n));
+                }
+
+                let result = new Quaternion(1, 0, 0, 0);
+                let base = this;
+                let exponent = n;
+
+                while (exponent > 0) {
+                    if (exponent % 2 === 1) {
+                        result = result.multiply(base);
+                    }
+                    base = base.multiply(base);
+                    exponent = Math.floor(exponent / 2);
+                }
+                return result;
+            }
+
+            norm() {
+                return Math.sqrt(this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z);
+            }
+
+            conjugate() {
+                return new Quaternion(this.w, -this.x, -this.y, -this.z);
+            }
+
+            inverse() {
+                const normSq = this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z;
+                if (normSq === 0) throw new Error("Cannot compute inverse of zero quaternion.");
+                return this.conjugate().scalarMultiply(1 / normSq);
+            }
+        }
+
+        function tokenize(expression) {
+            const tokens = [];
+            let i = 0;
+            while (i < expression.length) {
+                let char = expression[i];
+                if (/\s/.test(char)) {
+                    i++;
+                    continue;
+                }
+
+                if (/[0-9]|\./.test(char)) {
+                    let numStr = '';
+                    while (i < expression.length && (/[0-9]|\./.test(expression[i]))) {
+                        numStr += expression[i];
+                        i++;
+                    }
+                    tokens.push({ type: 'NUMBER', value: parseFloat(numStr) });
+                    continue;
+                }
+
+                if (/[a-zA-Z]/.test(char)) {
+                    let identifier = '';
+                    while (i < expression.length && /[a-zA-Z]/.test(expression[i])) {
+                        identifier += expression[i];
+                        i++;
+                    }
+                    if (identifier === 'q') {
+                        tokens.push({ type: 'Q' });
+                    } else if (['norm', 'conj', 'inv'].includes(identifier)) {
+                        tokens.push({ type: 'FUNCTION', value: identifier });
+                    } else {
+                        throw new Error(`Unknown identifier: ${identifier}`);
+                    }
+                    continue;
+                }
+
+                if (['+', '-', '*', '/', '^', '(', ')'].includes(char)) {
+                    tokens.push({ type: char });
+                    i++;
+                    continue;
+                }
+
+                throw new Error(`Unexpected character: ${char}`);
+            }
+            return tokens;
+        }
+
+        function parse(expression, q_in) {
+            tokens = tokenize(expression);
+            currentTokenIndex = 0;
+            q_input_for_parser = q_in;
+
+            const result = parseExpression();
+
+            if (currentTokenIndex < tokens.length) {
+                throw new Error(`Unexpected token at end of expression: ${tokens[currentTokenIndex].type}`);
+            }
+            return result;
+        }
+
+        function consume(expectedType) {
+            const token = tokens[currentTokenIndex];
+            if (!token || token.type !== expectedType) {
+                throw new Error(`Expected ${expectedType} but found ${token ? token.type : 'end of input'}`);
+            }
+            currentTokenIndex++;
+            return token;
+        }
+
+        function peek() {
+            return tokens[currentTokenIndex];
+        }
+
+        function parseExpression() {
+            let result = parseTerm();
+            while (peek() && (peek().type === '+' || peek().type === '-')) {
+                const operator = consume(peek().type).type;
+                const right = parseTerm();
+                if (operator === '+') {
+                    result = result.add(right);
+                } else {
+                    result = result.subtract(right);
+                }
+            }
+            return result;
+        }
+
+        function parseTerm() {
+            let result = parseFactor();
+            while (peek() && (peek().type === '*' || peek().type === '/')) {
+                const operator = consume(peek().type).type;
+                const right = parseFactor();
+                if (operator === '*') {
+                    result = result.multiply(right);
+                } else {
+                    result = result.divide(right);
+                }
+            }
+            return result;
+        }
+
+        function parseFactor() {
+            let result = parsePrimary();
+            if (peek() && peek().type === '^') {
+                consume('^');
+                const exponentToken = peek();
+                if (exponentToken && exponentToken.type === 'NUMBER') {
+                    const exponent = consume('NUMBER').value;
+                    if (Number.isInteger(exponent)) {
+                        result = result.pow(exponent);
+                    } else {
+                        throw new Error("Only integer exponents are supported for quaternion power.");
+                    }
+                } else {
+                    throw new Error("Expected a number for exponent.");
+                }
+            }
+            return result;
+        }
+
+        function parsePrimary() {
+            const token = peek();
+            if (!token) throw new Error("Unexpected end of input.");
+
+            if (token.type === 'NUMBER') {
+                return new Quaternion(consume('NUMBER').value, 0, 0, 0);
+            } else if (token.type === 'Q') {
+                consume('Q');
+                return q_input_for_parser;
+            } else if (token.type === 'FUNCTION') {
+                const funcName = consume('FUNCTION').value;
+                consume('(');
+                const arg = parseExpression();
+                consume(')');
+                switch (funcName) {
+                    case 'norm': return new Quaternion(arg.norm(), 0, 0, 0);
+                    case 'conj': return arg.conjugate();
+                    case 'inv': return arg.inverse();
+                    default: throw new Error(`Unknown function: ${funcName}`);
+                }
+            } else if (token.type === '(') {
+                consume('(');
+                const result = parseExpression();
+                consume(')');
+                return result;
+            } else if (token.type === '-') {
+                consume('-');
+                const operand = parsePrimary();
+                return operand.scalarMultiply(-1);
+            } else {
+                throw new Error(`Unexpected token: ${token.type}`);
+            }
+        }
+
+        function evaluateQuaternionExpression(expression, q_in) {
+            const errorMessageDiv = document.getElementById('errorMessage');
+            errorMessageDiv.textContent = '';
+
+            try {
+                expression = expression.trim().toLowerCase();
+                return parse(expression, q_in);
+            } catch (error) {
+                errorMessageDiv.textContent = `Error: ${error.message}`;
+                return new Quaternion(0, 0, 0, 0);
+            }
+        }
+
+        function getColor(value, minVal, maxVal) {
+            if (minVal === maxVal) {
+                return new THREE.Color(0x808080);
+            }
+
+            const normalized = (value - minVal) / (maxVal - minVal);
+            const clamped = Math.max(0, Math.min(1, normalized));
+
+            const hue = 240 - (clamped * 240);
+            const saturation = 1;
+            const lightness = 0.5;
+
+            const c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+            const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+            const m = lightness - c / 2;
+            let r = 0, g = 0, b = 0;
+
+            if (0 <= hue && hue < 60) {
+                r = c; g = x; b = 0;
+            } else if (60 <= hue && hue < 120) {
+                r = x; g = c; b = 0;
+            } else if (120 <= hue && hue < 180) {
+                r = 0; g = c; b = x;
+            } else if (180 <= hue && hue < 240) {
+                r = 0; g = x; b = c;
+            } else if (240 <= hue && hue < 300) {
+                r = x; g = 0; b = c;
+            } else if (300 <= hue && 360 >= hue) {
+                r = c; g = 0; b = x;
+            }
+
+            r = Math.round((r + m) * 255);
+            g = Math.round((g + m) * 255);
+            b = Math.round((b + m) * 255);
+
+            return new THREE.Color(`rgb(${r},${g},${b})`);
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 3.33;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            circleTexture = createCircleTexture();
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            const lineDisplayModeSelect = document.getElementById('lineDisplayMode');
+            lineDisplayMode = 'none';
+            lineDisplayModeSelect.value = lineDisplayMode;
+
+            createVisualization();
+            updateDisplay();
+
+            window.addEventListener('resize', onWindowResize, false);
+
+            document.getElementById('wValue').addEventListener('input', (event) => {
+                wFixed = parseFloat(event.target.value);
+                document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
+                createVisualization();
+                updateDisplay();
+            });
+
+            document.getElementById('density').addEventListener('input', (event) => {
+                density = parseInt(event.target.value);
+                document.getElementById('densityDisplay').textContent = density;
+                createVisualization();
+                updateDisplay();
+            });
+
+            document.getElementById('pointSizeFactor').addEventListener('input', (event) => {
+                pointSizeFactor = parseFloat(event.target.value);
+                document.getElementById('pointSizeFactorDisplay').textContent = pointSizeFactor.toFixed(2);
+                updateDisplay();
+            });
+
+            document.getElementById('applyFunctionBtn').addEventListener('click', () => {
+                currentFunction = document.getElementById('functionInput').value;
+                createVisualization();
+                updateDisplay();
+            });
+
+            document.getElementById('toggleViewBtn').addEventListener('click', () => {
+                showMappedView = !showMappedView;
+                document.getElementById('toggleViewBtn').textContent = showMappedView ? "Show Original View" : "Show Mapped View";
+                updateDisplay();
+            });
+
+            lineDisplayModeSelect.addEventListener('change', (event) => {
+                lineDisplayMode = event.target.value;
+                updateDisplay();
+            });
+        }
+
+        function createVisualization() {
+            originalPointPositions = [];
+            originalPointColors = [];
+            originalLinePositions = [];
+            originalLineColors = [];
+            originalLineIndices = [];
+
+            mappedPointPositions = [];
+            mappedPointColors = [];
+            mappedLinePositions = [];
+            mappedLineColors = [];
+            mappedLineIndices = [];
+
+            const numPoints = density;
+            const step = 2.0 / (numPoints - 1);
+
+            const minWInputForColor = parseFloat(document.getElementById('wValue').min);
+            const maxWInputForColor = parseFloat(document.getElementById('wValue').max);
+
+            let minOutputW = Infinity;
+            let maxOutputW = -Infinity;
+
+            const inputQuaternions = [];
+            const outputQuaternions = [];
+
+            for (let i = 0; i < numPoints; i++) {
+                const x_in = -1 + i * step;
+                for (let j = 0; j < numPoints; j++) {
+                    const y_in = -1 + j * step;
+                    for (let k = 0; k < numPoints; k++) {
+                        const z_in = -1 + k * step;
+
+                        const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
+                        inputQuaternions.push(q_in);
+
+                        let q_out;
+                        try {
+                            q_out = evaluateQuaternionExpression(currentFunction, q_in);
+                        } catch (e) {
+                            return;
+                        }
+                        outputQuaternions.push(q_out);
+                        
+                        minOutputW = Math.min(minOutputW, q_out.w);
+                        maxOutputW = Math.max(maxOutputW, q_out.w);
+                    }
+                }
+            }
+
+            if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
+                minOutputW = -5;
+                maxOutputW = 5;
+            }
+
+            for (let i = 0; i < inputQuaternions.length; i++) {
+                const q_in = inputQuaternions[i];
+                const q_out = outputQuaternions[i];
+
+                originalPointPositions.push(q_in.x, q_in.y, q_in.z);
+                const originalColor = getColor(q_in.w, minWInputForColor, maxWInputForColor);
+                originalPointColors.push(originalColor.r, originalColor.g, originalColor.b);
+
+                mappedPointPositions.push(q_out.x, q_out.y, q_out.z);
+                const mappedColor = getColor(q_out.w, minOutputW, maxOutputW);
+                mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
+            }
+
+            const numLineSubdivisions = Math.max(1, Math.floor(20 / density));
+            let currentLinePointIdx = 0;
+
+            const addLineSegment = (q1_in, q2_in) => {
+                for (let s = 0; s <= numLineSubdivisions; s++) {
+                    const t = s / numLineSubdivisions;
+
+                    const interp_w_in = q1_in.w * (1 - t) + q2_in.w * t;
+                    const interp_x_in = q1_in.x * (1 - t) + q2_in.x * t;
+                    const interp_y_in = q1_in.y * (1 - t) + q2_in.y * t;
+                    const interp_z_in = q1_in.z * (1 - t) + q2_in.z * t;
+                    const q_interp_in = new Quaternion(interp_w_in, interp_x_in, interp_y_in, interp_z_in);
+
+                    const q_interp_out = evaluateQuaternionExpression(currentFunction, q_interp_in);
+
+                    originalLinePositions.push(q_interp_in.x, q_interp_in.y, q_interp_in.z);
+                    const originalLineColor = getColor(q_interp_in.w, minWInputForColor, maxWInputForColor);
+                    originalLineColors.push(originalLineColor.r, originalLineColor.g, originalLineColor.b);
+
+                    mappedLinePositions.push(q_interp_out.x, q_interp_out.y, q_interp_out.z);
+                    const mappedLineColor = getColor(q_interp_out.w, minOutputW, maxOutputW);
+                    mappedLineColors.push(mappedLineColor.r, mappedLineColor.g, mappedLineColor.b);
+
+                    if (s > 0) {
+                        originalLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
+                        mappedLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
+                    }
+                    currentLinePointIdx++;
+                }
+            };
+
+            for (let i = 0; i < numPoints; i++) {
+                for (let j = 0; j < numPoints; j++) {
+                    for (let k = 0; k < numPoints; k++) {
+                        const currentLinearIdx = i * numPoints * numPoints + j * numPoints + k;
+                        const q_current_in = inputQuaternions[currentLinearIdx];
+
+                        if (i < numPoints - 1) {
+                            const q_nextX_in = inputQuaternions[currentLinearIdx + numPoints * numPoints];
+                            addLineSegment(q_current_in, q_nextX_in);
+                        }
+                        if (j < numPoints - 1) {
+                            const q_nextY_in = inputQuaternions[currentLinearIdx + numPoints];
+                            addLineSegment(q_current_in, q_nextY_in);
+                        }
+                        if (k < numPoints - 1) {
+                            const q_nextZ_in = inputQuaternions[currentLinearIdx + 1];
+                            addLineSegment(q_current_in, q_nextZ_in);
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateDisplay() {
+            if (pointsMesh) {
+                scene.remove(pointsMesh);
+                pointsMesh.geometry.dispose();
+                pointsMesh.material.dispose();
+                pointsMesh = null;
+            }
+            if (linesMesh) {
+                scene.remove(linesMesh);
+                linesMesh.geometry.dispose();
+                linesMesh.material.dispose();
+                linesMesh = null;
+            }
+
+            const currentPointPositions = showMappedView ? mappedPointPositions : originalPointPositions;
+            const currentPointColors = showMappedView ? mappedPointColors : originalPointColors;
+            const currentLinePositions = showMappedView ? mappedLinePositions : originalLinePositions;
+            const currentLineColors = showMappedView ? mappedLineColors : originalLineColors;
+            const currentLineIndices = showMappedView ? mappedLineIndices : originalLineIndices;
+
+            if (currentPointPositions.length === 0) {
+                return;
+            }
+
+            const basePointSize = 0.0245;
+            const initialDensity = 20;
+            const pointSize = (basePointSize * (initialDensity / density)) * pointSizeFactor;
+
+            const pointGeometry = new THREE.BufferGeometry();
+            pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(currentPointPositions, 3));
+            pointGeometry.setAttribute('color', new THREE.Float32BufferAttribute(currentPointColors, 3));
+
+            const pointMaterial = new THREE.PointsMaterial({
+                size: pointSize,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                map: circleTexture,
+                alphaTest: 0.1
+            });
+
+            pointsMesh = new THREE.Points(pointGeometry, pointMaterial);
+            scene.add(pointsMesh);
+
+            if (lineDisplayMode === 'show' && currentLineIndices.length > 0) {
+                const lineGeometry = new THREE.BufferGeometry();
+                lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(currentLinePositions, 3));
+                lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(currentLineColors, 3));
+                lineGeometry.setIndex(new THREE.Uint32BufferAttribute(currentLineIndices, 1));
+
+                const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 1 });
+                linesMesh = new THREE.LineSegments(lineGeometry, lineMaterial);
+                scene.add(linesMesh);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        window.onload = function () {
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>
