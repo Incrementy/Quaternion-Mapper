@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quaternion Mapping</title>
+    <title>Quaternion Mapping Visualization</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -167,8 +167,7 @@
         
         <div class="left-panel">
             <div class="example-functions">
-                Operations: (+), (-), (*), (/), (^ integer), norm(), conj(), inv()
-                Ex: q^3-q^2
+                Operations supported: Addition (+), Subtraction (-), Multiplication (*), Division (/), Power (^ integer), Norm (norm()), Conjugate (conj()), Inverse (inv()), Unary Minus (-q)
             </div>
             <div class="input-group has-error-message">
                 <label for="functionInput">Function:</label>
@@ -680,7 +679,7 @@
                 mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
             }
 
-            const numLineSubdivisions = Math.max(1, Math.floor(20 / density));
+            const numLineSubdivisions = Math.max(10, Math.floor(20 / density));
             let currentLinePointIdx = 0;
 
             const addLineSegment = (q1_in, q2_in) => {
