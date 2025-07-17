@@ -228,7 +228,7 @@
                         <option value="cubeEdges">Cube Edges</option>
                         <option value="cubeFaces">Cube Faces</option>
                         <option value="grid4D">4D Grid</option>
-                    </select>
+                        <option value="torus">Torus</option> </select>
                 </div>
                 <button id="toggleViewBtn" class="button-group-single">Show Mapped View</button>
             </div>
@@ -248,7 +248,7 @@
         let currentFunction = "q^2";
         let showMappedView = true;
         let lineDisplayMode = "none";
-        let startingArrangement = "grid3D"; // New variable for starting arrangement
+        let startingArrangement = "grid3D"; 
 
         let originalPointPositions = [];
         let originalPointColors = [];
@@ -268,12 +268,10 @@
 
         // Variables for mouse interaction
         let intersected = null;
-        let coordinatesDisplayDiv; // Declared here, initialized in init
+        let coordinatesDisplayDiv; 
 
-        // NEW: Global variable to store current point positions (3D) for efficient access in onMouseMove
         let currentPointPositionsVector3 = [];
 
-        // Orthographic camera frustum size (no longer directly used but kept as an example for orthographic)
         const frustumSize = 2.5;
 
         function createCircleTexture() {
@@ -372,7 +370,6 @@
                 return this.conjugate().scalarMultiply(1 / normSq);
             }
 
-            // NEW: Real and Imaginary Part functions (returning Quaternion objects)
             re() {
                 return new Quaternion(this.w, 0, 0, 0);
             }
@@ -381,7 +378,6 @@
                 return new Quaternion(0, this.x, this.y, this.z);
             }
 
-            // NEW: Individual component functions (returning numbers)
             w_comp() {
                 return this.w;
             }
@@ -419,7 +415,6 @@
                     continue;
                 }
 
-                // MODIFIED: Handle multi-character functions and single-character variables/units within one block
                 if (/[a-zA-Z_]/.test(char)) {
                     let identifier = '';
                     while (i < expression.length && /[a-zA-Z_]/.test(expression[i])) {
@@ -509,20 +504,15 @@
 
         function parseFactor() {
             let result = parsePrimary();
-            // Handle implicit multiplication (e.g., 2q, qi)
-            while (peek() && (peek().type === 'NUMBER' || peek().type === 'Q' || peek().type === 'I' || peek().type === 'J' || peek().type === 'K' || peek().type === 'FUNCTION' || peek().type === '(' || peek().type === '-')) { // Added unary minus for implicit multiplication like -qi
-                // Check for unary minus specifically for cases like `2-q` vs `2 -q` (where -q is implicitly multiplied)
-                // If it's a unary minus, treat the subsequent primary as part of the implicit multiplication
+            while (peek() && (peek().type === 'NUMBER' || peek().type === 'Q' || peek().type === 'I' || peek().type === 'J' || peek().type === 'K' || peek().type === 'FUNCTION' || peek().type === '(' || peek().type === '-')) {
                 if (peek().type === '-' && tokens[currentTokenIndex + 1] && 
                     (['NUMBER', 'Q', 'I', 'J', 'K', 'FUNCTION', '('].includes(tokens[currentTokenIndex + 1].type))) {
-                    const unaryMinusPrimary = parsePrimary(); // This will handle the '-' and the next primary
+                    const unaryMinusPrimary = parsePrimary(); 
                     result = result.multiply(unaryMinusPrimary);
                 } else if (peek().type !== '-' || (peek().type === '-' && !tokens[currentTokenIndex + 1])) {
-                    // Only implicitly multiply if it's not a standalone unary minus before a regular operand that should be part of subtraction
                     const nextPrimary = parsePrimary();
                     result = result.multiply(nextPrimary);
                 } else {
-                    // If it's a '-' that's likely a subtraction, break out
                     break; 
                 }
             }
@@ -571,13 +561,12 @@
                     case 'norm': return new Quaternion(arg.norm(), 0, 0, 0);
                     case 'conj': return arg.conjugate();
                     case 'inv': return arg.inverse();
-                    case 're': return arg.re(); // Returns a Quaternion (w, 0, 0, 0)
-                    case 'im': return arg.im(); // Returns a Quaternion (0, x, y, z)
-                    // NEW: Cases for individual component extraction
-                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0); // Returns scalar w as (w, 0, 0, 0)
-                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0); // Returns scalar x as (x, 0, 0, 0)
-                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0); // Returns scalar y as (y, 0, 0, 0)
-                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0); // Returns scalar z as (z, 0, 0, 0)
+                    case 're': return arg.re(); 
+                    case 'im': return arg.im(); 
+                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0); 
+                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0); 
+                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0); 
+                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0); 
                     default: throw new Error(`Unknown function: ${funcName}`);
                 }
             } else if (token.type === '(') {
@@ -596,19 +585,18 @@
 
         function evaluateQuaternionExpression(expression, q_in) {
             const errorMessageDiv = document.getElementById('errorMessage');
-            errorMessageDiv.textContent = ''; // Clear previous error
+            errorMessageDiv.textContent = ''; 
 
             try {
                 expression = expression.trim().toLowerCase();
                 const result = parse(expression, q_in);
-                // Basic check to ensure the result is a Quaternion (or something that can be a Quaternion)
                 if (!(result instanceof Quaternion)) {
                     throw new Error("Function must return a quaternion.");
                 }
                 return result;
             } catch (error) {
                 errorMessageDiv.textContent = `Error: ${error.message}`;
-                return new Quaternion(0, 0, 0, 0); // Return a zero quaternion on error
+                return new Quaternion(0, 0, 0, 0); 
             }
         }
 
@@ -620,7 +608,7 @@
             const normalized = (value - minVal) / (maxVal - minVal);
             const clamped = Math.max(0, Math.min(1, normalized));
 
-            const hue = 240 - (clamped * 240); // Blue (240) to Red (0)
+            const hue = 240 - (clamped * 240); 
             const saturation = 1;
             const lightness = 0.5;
 
@@ -656,7 +644,6 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
-            // REVERTED: Use PerspectiveCamera
             camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera.position.z = 3.33;
 
@@ -671,10 +658,9 @@
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
 
-            // NEW: Hide coordinates when rotation starts
             controls.addEventListener('start', function() {
                 coordinatesDisplayDiv.style.display = 'none';
-                intersected = null; // Reset intersected point
+                intersected = null;
             });
 
             const ambientLight = new THREE.AmbientLight(0x404040);
@@ -698,12 +684,14 @@
             createVisualization();
             updateDisplay();
 
+            // BUG FIX: Set initial button text correctly as it starts in Mapped View
+            document.getElementById('toggleViewBtn').textContent = "Show Original View";
+
             window.addEventListener('resize', onWindowResize, false);
 
             document.getElementById('wValue').addEventListener('input', (event) => {
                 wFixed = parseFloat(event.target.value);
                 document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
-                // Only recreate visualization if not in 4D grid mode, where W is dynamic
                 if (startingArrangement !== 'grid4D') {
                     createVisualization();
                 }
@@ -723,13 +711,11 @@
                 updateDisplay();
             });
 
-            // NEW: Automatic function application on input change
             document.getElementById('functionInput').addEventListener('input', (event) => {
                 currentFunction = event.target.value;
                 const errorMessageDiv = document.getElementById('errorMessage');
-                // Attempt to parse with a dummy quaternion to check for syntax errors
                 evaluateQuaternionExpression(currentFunction, new Quaternion(0,0,0,0)); 
-                if (errorMessageDiv.textContent === '') { // Only update if no error
+                if (errorMessageDiv.textContent === '') { 
                     createVisualization();
                     updateDisplay();
                 }
@@ -748,11 +734,10 @@
 
             startingArrangementSelect.addEventListener('change', (event) => {
                 startingArrangement = event.target.value;
-                // Enable/disable wValue slider based on 4D Grid selection
                 const wValueSlider = document.getElementById('wValue');
                 wValueSlider.disabled = (startingArrangement === 'grid4D');
                 if (startingArrangement === 'grid4D') {
-                    wValueSlider.style.opacity = '0.3'; // Visually indicate disabled
+                    wValueSlider.style.opacity = '0.3'; 
                 } else {
                     wValueSlider.style.opacity = '1.0';
                 }
@@ -762,18 +747,16 @@
             });
         }
 
-        // Helper function to convert 3D world coordinates to 2D screen coordinates (pixels)
         function vector3ToScreenXY(vector, camera, containerRect) {
             const tempVector = vector.clone();
-            tempVector.project(camera); // Project 3D point to NDC (-1 to 1)
+            tempVector.project(camera); 
 
             const x = (tempVector.x * 0.5 + 0.5) * containerRect.width;
-            const y = (tempVector.y * -0.5 + 0.5) * containerRect.height; // Y-axis is inverted in screen coordinates
+            const y = (tempVector.y * -0.5 + 0.5) * containerRect.height; 
 
             return { x, y };
         }
 
-        // Function to display 4D coordinates
         function displayPointCoordinates(pointIndex) {
             let quaternionData;
             if (showMappedView) {
@@ -792,21 +775,17 @@
             }
         }
 
-        // MODIFIED: onMouseMove function for interactive coordinate display based on screen distance
         function onMouseMove(event) {
             const container = document.getElementById('canvas-container');
-            const rect = container.getBoundingClientRect(); // Get container's position and size
+            const rect = container.getBoundingClientRect(); 
 
-            const mouseX = event.clientX - rect.left; // Mouse X relative to canvas container
-            const mouseY = event.clientY - rect.top;  // Mouse Y relative to canvas container
+            const mouseX = event.clientX - rect.left; 
+            const mouseY = event.clientY - rect.top;  
 
             let closestPointIndex = null;
             let minDistanceSq = Infinity;
-            // Threshold in pixels, adjusted by point size for better feel
-            // The 15 is an arbitrary base pixel radius. Adjust as needed.
             const screenDistanceThresholdSq = (15 * pointSizeFactor) ** 2;
 
-            // Ensure currentPointPositionsVector3 is populated
             if (!currentPointPositionsVector3 || currentPointPositionsVector3.length === 0) {
                 coordinatesDisplayDiv.style.display = 'none';
                 return;
@@ -815,10 +794,8 @@
             for (let i = 0; i < currentPointPositionsVector3.length; i++) {
                 const point3D = currentPointPositionsVector3[i];
                 
-                // Convert 3D point to 2D screen coordinates
                 const screenXY = vector3ToScreenXY(point3D, camera, rect);
 
-                // Calculate 2D distance squared between mouse and point on screen
                 const dx = mouseX - screenXY.x;
                 const dy = mouseY - screenXY.y;
                 const distanceSq = dx * dx + dy * dy;
@@ -830,19 +807,16 @@
             }
 
             if (closestPointIndex !== null) {
-                // A point is intersected based on screen distance
                 if (intersected !== closestPointIndex) {
                     intersected = closestPointIndex;
                     displayPointCoordinates(intersected);
                 }
-                coordinatesDisplayDiv.style.left = (event.clientX + 15) + 'px'; // Position relative to viewport
-                coordinatesDisplayDiv.style.top = (event.clientY + 15) + 'px';   // Position relative to viewport
+                coordinatesDisplayDiv.style.left = (event.clientX + 15) + 'px'; 
+                coordinatesDisplayDiv.style.top = (event.clientY + 15) + 'px';   
                 coordinatesDisplayDiv.style.display = 'block';
 
             } else {
-                // No point is intersected
                 if (intersected !== null) {
-                    // If we were previously hovering a point, hide the display
                     intersected = null;
                     coordinatesDisplayDiv.style.display = 'none';
                 }
@@ -863,19 +837,18 @@
             mappedLineColors = [];
             mappedLineIndices = [];
 
-            // ADDED: Store full quaternion objects for coordinate display
             originalQuaternions = []; 
             mappedQuaternions = [];
 
             const numPoints = density;
-            const step = 2.0 / (numPoints - 1); // For grid-based arrangements spanning -1 to 1
+            const step = 2.0 / (numPoints - 1); 
 
             let minWInputForColor = parseFloat(document.getElementById('wValue').min);
             let maxWInputForColor = parseFloat(document.getElementById('wValue').max);
 
             if (startingArrangement === 'grid4D') {
-                 minWInputForColor = -1; // Override for 4D grid
-                 maxWInputForColor = 1;  // Override for 4D grid
+                 minWInputForColor = -1; 
+                 maxWInputForColor = 1;  
             }
 
             let minOutputW = Infinity;
@@ -908,7 +881,7 @@
                 }
             } else if (startingArrangement === 'sphere') {
                 const radius = 1;
-                const numSpherePoints = density * density; // Adjust as needed for better distribution
+                const numSpherePoints = density * density; 
                 for (let i = 0; i < numSpherePoints; i++) {
                     const phi = Math.acos(1 - 2 * (i / numSpherePoints));
                     const theta = Math.PI * (1 + Math.sqrt(5)) * i;
@@ -923,9 +896,8 @@
             } else if (startingArrangement === 'cubeEdges') {
                 const side = 2.0;
                 const halfSide = side / 2;
-                const pointsPerEdge = density; // Number of segments per edge
+                const pointsPerEdge = density; 
 
-                // Define vertices of the cube
                 const vertices = [];
                 for (let i = -1; i <= 1; i += 2) {
                     for (let j = -1; j <= 1; j += 2) {
@@ -935,14 +907,13 @@
                     }
                 }
 
-                // Define edges by vertex indices (0-7)
                 const edges = [
-                    [0, 1], [1, 3], [3, 2], [2, 0], // Bottom face
-                    [4, 5], [5, 7], [7, 6], [6, 4], // Top face
-                    [0, 4], [1, 5], [3, 7], [2, 6]  // Vertical edges
+                    [0, 1], [1, 3], [3, 2], [2, 0], 
+                    [4, 5], [5, 7], [7, 6], [6, 4], 
+                    [0, 4], [1, 5], [3, 7], [2, 6]  
                 ];
 
-                const addedPointsMap = new Map(); // To avoid duplicate points
+                const addedPointsMap = new Map(); 
 
                 edges.forEach(edge => {
                     const v1 = vertices[edge[0]];
@@ -965,42 +936,39 @@
             } else if (startingArrangement === 'cubeFaces') {
                 const side = 2.0;
                 const halfSide = side / 2;
-                const pointsPerFaceDim = numPoints; // Number of points along one dimension of a face
+                const pointsPerFaceDim = numPoints; 
 
-                // Front/Back faces (z = +-halfSide)
                 for (let i = 0; i < pointsPerFaceDim; i++) {
                     const x_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const y_in = -halfSide + j * step;
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide)); // Front
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide)); // Back
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide)); 
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide)); 
                     }
                 }
-                // Top/Bottom faces (y = +-halfSide)
                 for (let i = 0; i < pointsPerFaceDim; i++) {
                     const x_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const z_in = -halfSide + j * step;
-                        if (z_in !== halfSide && z_in !== -halfSide) { // Avoid duplicating points with front/back faces
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in)); // Top
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in)); // Bottom
+                        if (z_in !== halfSide && z_in !== -halfSide) { 
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in)); 
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in)); 
                         }
                     }
                 }
-                // Left/Right faces (x = +-halfSide)
                 for (let i = 0; i < pointsPerFaceDim; i++) {
                     const y_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const z_in = -halfSide + j * step;
-                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) { // Avoid duplication
-                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in)); // Right
-                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in)); // Left
+                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) { 
+                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in)); 
+                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in)); 
                         }
                     }
                 }
             } else if (startingArrangement === 'grid4D') {
                 const grid4DPoints = density;
-                const step4D = 2.0 / (grid4DPoints - 1); // Spanning -1 to 1 for each dimension
+                const step4D = 2.0 / (grid4DPoints - 1); 
 
                 for (let i = 0; i < grid4DPoints; i++) {
                     const w_in = -1 + i * step4D;
@@ -1016,6 +984,25 @@
                         }
                     }
                 }
+            } else if (startingArrangement === 'torus') { // NEW TORUS ARRANGEMENT
+                const majorRadius = 1.0; // R
+                const minorRadius = 0.4;  // r
+                const numSegmentsU = density; // Points along major circle
+                const numSegmentsV = density; // Points along minor circle
+
+                for (let i = 0; i < numSegmentsU; i++) {
+                    const u = (i / numSegmentsU) * 2 * Math.PI;
+                    for (let j = 0; j < numSegmentsV; j++) {
+                        const v = (j / numSegmentsV) * 2 * Math.PI;
+
+                        const x_in = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
+                        const y_in = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
+                        const z_in = minorRadius * Math.sin(v);
+
+                        const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
+                        inputQuaternions.push(q_in);
+                    }
+                }
             }
 
 
@@ -1024,7 +1011,6 @@
                 try {
                     q_out = evaluateQuaternionExpression(currentFunction, q_in);
                 } catch (e) {
-                    // Error handling already in evaluateQuaternionExpression, just prevent further processing
                     return;
                 }
                 outputQuaternions.push(q_out);
@@ -1035,7 +1021,6 @@
 
 
             if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
-                // Set a default range if all output W values are the same or there are no points
                 minOutputW = -5; 
                 maxOutputW = 5;
             }
@@ -1047,12 +1032,12 @@
                 originalPointPositions.push(q_in.x, q_in.y, q_in.z);
                 const originalColor = getColor(q_in.w, minWInputForColor, maxWInputForColor);
                 originalPointColors.push(originalColor.r, originalColor.g, originalColor.b);
-                originalQuaternions.push(q_in); // Store full quaternion
+                originalQuaternions.push(q_in); 
 
                 mappedPointPositions.push(q_out.x, q_out.y, q_out.z);
                 const mappedColor = getColor(q_out.w, minOutputW, maxOutputW);
                 mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
-                mappedQuaternions.push(q_out); // Store full quaternion
+                mappedQuaternions.push(q_out); 
             }
 
             const numLineSubdivisions = Math.max(10, Math.floor(20 / density));
@@ -1086,7 +1071,6 @@
                 }
             };
 
-            // Helper to get index of a quaternion in the inputQuaternions array based on approximate values
             const getQuaternionIndex = (w, x, y, z, tolerance = 0.0001) => {
                 for (let i = 0; i < inputQuaternions.length; i++) {
                     const q = inputQuaternions[i];
@@ -1100,7 +1084,6 @@
                 return -1;
             };
 
-            // Line connections based on starting arrangement
             if (startingArrangement === 'grid3D') {
                 for (let i = 0; i < numPoints; i++) {
                     const x_in = -1 + i * step;
@@ -1110,17 +1093,14 @@
                             const z_in = -1 + k * step;
                             const q_current_in = new Quaternion(wFixed, x_in, y_in, z_in);
 
-                            // Connect along X
                             if (i < numPoints - 1) {
                                 const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, z_in);
                                 addLineSegment(q_current_in, q_nextX_in);
                             }
-                            // Connect along Y
                             if (j < numPoints - 1) {
                                 const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, z_in);
                                 addLineSegment(q_current_in, q_nextY_in);
                             }
-                            // Connect along Z
                             if (k < numPoints - 1) {
                                 const q_nextZ_in = new Quaternion(wFixed, x_in, y_in, z_in + step);
                                 addLineSegment(q_current_in, q_nextZ_in);
@@ -1136,12 +1116,10 @@
                         const y_in = -1 + j * step;
                         const q_current_in = new Quaternion(wFixed, x_in, y_in, fixedZ);
 
-                        // Connect along X
                         if (i < numPoints - 1) {
                             const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, fixedZ);
                             addLineSegment(q_current_in, q_nextX_in);
                         }
-                        // Connect along Y
                         if (j < numPoints - 1) {
                             const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, fixedZ);
                             addLineSegment(q_current_in, q_nextY_in);
@@ -1149,7 +1127,6 @@
                     }
                 }
             } else if (startingArrangement === 'sphere') {
-                // Lines are generally not drawn for sphere for simplicity, as it requires complex neighbor finding
             } else if (startingArrangement === 'cubeEdges') {
                 const side = 2.0;
                 const halfSide = side / 2;
@@ -1157,7 +1134,6 @@
                 const edgeStep = side / (pointsPerEdge - 1);
                 const tolerance = 0.001;
 
-                // Define cube vertices
                 const vertices = [];
                 for (let i = -1; i <= 1; i += 2) {
                     for (let j = -1; j <= 1; j += 2) {
@@ -1167,18 +1143,17 @@
                     }
                 }
 
-                // Define edges as pairs of vertex indices
                 const edges = [
-                    [0, 1], [1, 3], [3, 2], [2, 0], // Bottom face
-                    [4, 5], [5, 7], [7, 6], [6, 4], // Top face
-                    [0, 4], [1, 5], [3, 7], [2, 6]  // Vertical edges
+                    [0, 1], [1, 3], [3, 2], [2, 0], 
+                    [4, 5], [5, 7], [7, 6], [6, 4], 
+                    [0, 4], [1, 5], [3, 7], [2, 6]  
                 ];
 
                 edges.forEach(edge => {
                     const v1 = vertices[edge[0]];
                     const v2 = vertices[edge[1]];
 
-                    for (let i = 0; i < pointsPerEdge - 1; i++) { // Connect i to i+1
+                    for (let i = 0; i < pointsPerEdge - 1; i++) { 
                         const t1 = i / (pointsPerEdge - 1);
                         const t2 = (i + 1) / (pointsPerEdge - 1);
 
@@ -1212,7 +1187,6 @@
                             else if (fixedAxis === 'y') q_current = new Quaternion(wFixed, coord1_val, fixedVal, coord2_val);
                             else q_current = new Quaternion(wFixed, coord1_val, coord2_val, fixedVal);
 
-                            // Connect along first varying dimension
                             if (i < pointsPerFaceDim - 1) {
                                 let q_next;
                                 const next_coord1_val = -halfSide + (i + 1) * faceStep;
@@ -1221,7 +1195,6 @@
                                 else q_next = new Quaternion(wFixed, next_coord1_val, coord2_val, fixedVal);
                                 addLineSegment(q_current, q_next);
                             }
-                            // Connect along second varying dimension
                             if (j < pointsPerFaceDim - 1) {
                                 let q_next;
                                 const next_coord2_val = -halfSide + (j + 1) * faceStep;
@@ -1234,13 +1207,10 @@
                     }
                 };
                 
-                // Front and Back faces
                 generateFaceLines('z', halfSide);
                 generateFaceLines('z', -halfSide);
-                // Top and Bottom faces
                 generateFaceLines('y', halfSide);
                 generateFaceLines('y', -halfSide);
-                // Right and Left faces
                 generateFaceLines('x', halfSide);
                 generateFaceLines('x', -halfSide);
 
@@ -1258,28 +1228,57 @@
                                 const z_in = -1 + m * step4D;
                                 const q_current_in = new Quaternion(w_in, x_in, y_in, z_in);
 
-                                // Connect along W
                                 if (i < grid4DPoints - 1) {
                                     const q_nextW_in = new Quaternion(w_in + step4D, x_in, y_in, z_in);
                                     addLineSegment(q_current_in, q_nextW_in);
                                 }
-                                // Connect along X
                                 if (j < grid4DPoints - 1) {
                                     const q_nextX_in = new Quaternion(w_in, x_in + step4D, y_in, z_in);
                                     addLineSegment(q_current_in, q_nextX_in);
                                 }
-                                // Connect along Y
                                 if (l < grid4DPoints - 1) {
                                     const q_nextY_in = new Quaternion(w_in, x_in, y_in + step4D, z_in);
                                     addLineSegment(q_current_in, q_nextY_in);
                                 }
-                                // Connect along Z
                                 if (m < grid4DPoints - 1) {
                                     const q_nextZ_in = new Quaternion(w_in, x_in, y_in, z_in + step4D);
                                     addLineSegment(q_current_in, q_nextZ_in);
                                 }
                             }
                         }
+                    }
+                }
+            } else if (startingArrangement === 'torus') { // NEW TORUS LINE GENERATION
+                const majorRadius = 1.0;
+                const minorRadius = 0.4;
+                const numSegmentsU = density;
+                const numSegmentsV = density;
+
+                for (let i = 0; i < numSegmentsU; i++) {
+                    for (let j = 0; j < numSegmentsV; j++) {
+                        const u = (i / numSegmentsU) * 2 * Math.PI;
+                        const v = (j / numSegmentsV) * 2 * Math.PI;
+
+                        const x_curr = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
+                        const y_curr = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
+                        const z_curr = minorRadius * Math.sin(v);
+                        const q_current_in = new Quaternion(wFixed, x_curr, y_curr, z_curr);
+
+                        // Connect along U (major circle)
+                        const u_next = ((i + 1) % numSegmentsU / numSegmentsU) * 2 * Math.PI;
+                        const x_next_u = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u_next);
+                        const y_next_u = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u_next);
+                        const z_next_u = minorRadius * Math.sin(v);
+                        const q_next_u_in = new Quaternion(wFixed, x_next_u, y_next_u, z_next_u);
+                        addLineSegment(q_current_in, q_next_u_in);
+
+                        // Connect along V (minor circle)
+                        const v_next = ((j + 1) % numSegmentsV / numSegmentsV) * 2 * Math.PI;
+                        const x_next_v = (majorRadius + minorRadius * Math.cos(v_next)) * Math.cos(u);
+                        const y_next_v = (majorRadius + minorRadius * Math.cos(v_next)) * Math.sin(u);
+                        const z_next_v = minorRadius * Math.sin(v_next);
+                        const q_next_v_in = new Quaternion(wFixed, x_next_v, y_next_v, z_next_v);
+                        addLineSegment(q_current_in, q_next_v_in);
                     }
                 }
             }
@@ -1330,7 +1329,6 @@
             pointsMesh = new THREE.Points(pointGeometry, pointMaterial);
             scene.add(pointsMesh);
 
-            // NEW: Populate currentPointPositionsVector3 for screen-space hover detection
             currentPointPositionsVector3 = [];
             const positionsAttribute = pointGeometry.attributes.position;
             for (let i = 0; i < positionsAttribute.count; i++) {
@@ -1358,7 +1356,6 @@
 
         function onWindowResize() {
             const container = document.getElementById('canvas-container');
-            // REVERTED: Update PerspectiveCamera aspect ratio on resize
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
