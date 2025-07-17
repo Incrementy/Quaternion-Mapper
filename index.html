@@ -167,7 +167,8 @@
         
         <div class="left-panel">
             <div class="example-functions">
-                Operations supported: Addition (+), Subtraction (-), Multiplication (*), Division (/), Power (^ integer), Norm (norm()), Conjugate (conj()), Inverse (inv()), Unary Minus (-q)
+                Operations supported: (+), (-), (*), (/), (^ integer), norm(), conj(), inv()<br>
+                Variables: q (input quaternion), i, j, k
             </div>
             <div class="input-group has-error-message">
                 <label for="functionInput">Function:</label>
@@ -353,15 +354,33 @@
                     continue;
                 }
 
+                // Handle single-character quaternion units and 'q' variable
+                if (char === 'q') {
+                    tokens.push({ type: 'Q' });
+                    i++;
+                    continue;
+                } else if (char === 'i') {
+                    tokens.push({ type: 'I' });
+                    i++;
+                    continue;
+                } else if (char === 'j') {
+                    tokens.push({ type: 'J' });
+                    i++;
+                    continue;
+                } else if (char === 'k') {
+                    tokens.push({ type: 'K' });
+                    i++;
+                    continue;
+                }
+                
+                // Handle multi-character functions (norm, conj, inv)
                 if (/[a-zA-Z]/.test(char)) {
                     let identifier = '';
                     while (i < expression.length && /[a-zA-Z]/.test(expression[i])) {
                         identifier += expression[i];
                         i++;
                     }
-                    if (identifier === 'q') {
-                        tokens.push({ type: 'Q' });
-                    } else if (['norm', 'conj', 'inv'].includes(identifier)) {
+                    if (['norm', 'conj', 'inv'].includes(identifier)) {
                         tokens.push({ type: 'FUNCTION', value: identifier });
                     } else {
                         throw new Error(`Unknown identifier: ${identifier}`);
@@ -436,6 +455,23 @@
 
         function parseFactor() {
             let result = parsePrimary();
+            // Handle implicit multiplication (e.g., 2q, qi)
+            while (peek() && (peek().type === 'NUMBER' || peek().type === 'Q' || peek().type === 'I' || peek().type === 'J' || peek().type === 'K' || peek().type === 'FUNCTION' || peek().type === '(' || peek().type === '-')) { // Added unary minus for implicit multiplication like -qi
+                // Check for unary minus specifically for cases like `2-q` vs `2 -q` (where -q is implicitly multiplied)
+                // If it's a unary minus, treat the subsequent primary as part of the implicit multiplication
+                if (peek().type === '-' && tokens[currentTokenIndex + 1] && 
+                    (['NUMBER', 'Q', 'I', 'J', 'K', 'FUNCTION', '('].includes(tokens[currentTokenIndex + 1].type))) {
+                    const unaryMinusPrimary = parsePrimary(); // This will handle the '-' and the next primary
+                    result = result.multiply(unaryMinusPrimary);
+                } else if (peek().type !== '-' || (peek().type === '-' && !tokens[currentTokenIndex + 1])) {
+                    // Only implicitly multiply if it's not a standalone unary minus before a regular operand that should be part of subtraction
+                    const nextPrimary = parsePrimary();
+                    result = result.multiply(nextPrimary);
+                } else {
+                    // If it's a '-' that's likely a subtraction, break out
+                    break; 
+                }
+            }
             if (peek() && peek().type === '^') {
                 consume('^');
                 const exponentToken = peek();
@@ -462,7 +498,17 @@
             } else if (token.type === 'Q') {
                 consume('Q');
                 return q_input_for_parser;
-            } else if (token.type === 'FUNCTION') {
+            } else if (token.type === 'I') {
+                consume('I');
+                return new Quaternion(0, 1, 0, 0);
+            } else if (token.type === 'J') {
+                consume('J');
+                return new Quaternion(0, 0, 1, 0);
+            } else if (token.type === 'K') {
+                consume('K');
+                return new Quaternion(0, 0, 0, 1);
+            }
+            else if (token.type === 'FUNCTION') {
                 const funcName = consume('FUNCTION').value;
                 consume('(');
                 const arg = parseExpression();
@@ -496,7 +542,7 @@
                 return parse(expression, q_in);
             } catch (error) {
                 errorMessageDiv.textContent = `Error: ${error.message}`;
-                return new Quaternion(0, 0, 0, 0);
+                return new Quaternion(0, 0, 0, 0); // Return a zero quaternion on error
             }
         }
 
@@ -508,7 +554,7 @@
             const normalized = (value - minVal) / (maxVal - minVal);
             const clamped = Math.max(0, Math.min(1, normalized));
 
-            const hue = 240 - (clamped * 240);
+            const hue = 240 - (clamped * 240); // Blue (240) to Red (0)
             const saturation = 1;
             const lightness = 0.5;
 
@@ -651,6 +697,7 @@
                         try {
                             q_out = evaluateQuaternionExpression(currentFunction, q_in);
                         } catch (e) {
+                            // Error handling already in evaluateQuaternionExpression, just prevent further processing
                             return;
                         }
                         outputQuaternions.push(q_out);
@@ -662,7 +709,8 @@
             }
 
             if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
-                minOutputW = -5;
+                // Set a default range if all output W values are the same or there are no points
+                minOutputW = -5; 
                 maxOutputW = 5;
             }
 
