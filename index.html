@@ -178,7 +178,7 @@
     <div id="coordinatesDisplayDiv"></div>
 
     <div class="controls-container">
-        
+
         <div class="left-panel">
             <div class="example-functions">
                 Operations supported: (+), (-), (*), (/), (^ integer), norm(), conj(), inv(), re(), im(), w_comp(), x_comp(), y_comp(), z_comp()<br>
@@ -248,7 +248,7 @@
         let currentFunction = "q^2";
         let showMappedView = true;
         let lineDisplayMode = "none";
-        let startingArrangement = "grid3D"; 
+        let startingArrangement = "grid3D";
 
         let originalPointPositions = [];
         let originalPointColors = [];
@@ -268,7 +268,7 @@
 
         // Variables for mouse interaction
         let intersected = null;
-        let coordinatesDisplayDiv; 
+        let coordinatesDisplayDiv;
 
         let currentPointPositionsVector3 = [];
 
@@ -436,7 +436,7 @@
                     }
                     continue;
                 }
-                
+
                 if (['+', '-', '*', '/', '^', '(', ')'].includes(char)) {
                     tokens.push({ type: char });
                     i++;
@@ -504,17 +504,20 @@
 
         function parseFactor() {
             let result = parsePrimary();
-            while (peek() && (peek().type === 'NUMBER' || peek().type === 'Q' || peek().type === 'I' || peek().type === 'J' || peek().type === 'K' || peek().type === 'FUNCTION' || peek().type === '(' || peek().type === '-')) {
-                if (peek().type === '-' && tokens[currentTokenIndex + 1] && 
-                    (['NUMBER', 'Q', 'I', 'J', 'K', 'FUNCTION', '('].includes(tokens[currentTokenIndex + 1].type))) {
-                    const unaryMinusPrimary = parsePrimary(); 
-                    result = result.multiply(unaryMinusPrimary);
-                } else if (peek().type !== '-' || (peek().type === '-' && !tokens[currentTokenIndex + 1])) {
-                    const nextPrimary = parsePrimary();
-                    result = result.multiply(nextPrimary);
-                } else {
-                    break; 
-                }
+            // This loop handles implied multiplication (e.g., "2q", "q(i+j)").
+            // It should NOT imply multiplication if the next token is an operator like '+', '-', '*', '/', or '^'.
+            // Only specific tokens that begin a new primary expression without an explicit operator
+            // should trigger implied multiplication.
+            while (peek() &&
+                   (peek().type === 'NUMBER' || // e.g., 'q 2' or 'q(2)'
+                    peek().type === 'Q' ||      // e.g., 'qq'
+                    peek().type === 'I' ||      // e.g., 'q i'
+                    peek().type === 'J' ||
+                    peek().type === 'K' ||
+                    peek().type === 'FUNCTION' || // e.g., 'q norm(x)'
+                    peek().type === '(')) {     // e.g., 'q (i+j)'
+                const nextPrimary = parsePrimary();
+                result = result.multiply(nextPrimary);
             }
             if (peek() && peek().type === '^') {
                 consume('^');
@@ -561,12 +564,12 @@
                     case 'norm': return new Quaternion(arg.norm(), 0, 0, 0);
                     case 'conj': return arg.conjugate();
                     case 'inv': return arg.inverse();
-                    case 're': return arg.re(); 
-                    case 'im': return arg.im(); 
-                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0); 
-                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0); 
-                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0); 
-                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0); 
+                    case 're': return arg.re();
+                    case 'im': return arg.im();
+                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0);
+                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0);
+                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0);
+                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0);
                     default: throw new Error(`Unknown function: ${funcName}`);
                 }
             } else if (token.type === '(') {
@@ -574,9 +577,9 @@
                 const result = parseExpression();
                 consume(')');
                 return result;
-            } else if (token.type === '-') {
+            } else if (token.type === '-') { // Handle unary minus here, e.g., '-5' or '-q'
                 consume('-');
-                const operand = parsePrimary();
+                const operand = parsePrimary(); // Recursively parse the operand for the unary minus
                 return operand.scalarMultiply(-1);
             } else {
                 throw new Error(`Unexpected token: ${token.type}`);
@@ -585,7 +588,7 @@
 
         function evaluateQuaternionExpression(expression, q_in) {
             const errorMessageDiv = document.getElementById('errorMessage');
-            errorMessageDiv.textContent = ''; 
+            errorMessageDiv.textContent = '';
 
             try {
                 expression = expression.trim().toLowerCase();
@@ -596,7 +599,7 @@
                 return result;
             } catch (error) {
                 errorMessageDiv.textContent = `Error: ${error.message}`;
-                return new Quaternion(0, 0, 0, 0); 
+                return new Quaternion(0, 0, 0, 0);
             }
         }
 
@@ -608,7 +611,7 @@
             const normalized = (value - minVal) / (maxVal - minVal);
             const clamped = Math.max(0, Math.min(1, normalized));
 
-            const hue = 240 - (clamped * 240); 
+            const hue = 240 - (clamped * 240);
             const saturation = 1;
             const lightness = 0.5;
 
@@ -684,7 +687,7 @@
             createVisualization();
             updateDisplay();
 
-            // BUG FIX: Set initial button text correctly as it starts in Mapped View
+            // Set initial button text correctly as it starts in Mapped View
             document.getElementById('toggleViewBtn').textContent = "Show Original View";
 
             window.addEventListener('resize', onWindowResize, false);
@@ -714,8 +717,8 @@
             document.getElementById('functionInput').addEventListener('input', (event) => {
                 currentFunction = event.target.value;
                 const errorMessageDiv = document.getElementById('errorMessage');
-                evaluateQuaternionExpression(currentFunction, new Quaternion(0,0,0,0)); 
-                if (errorMessageDiv.textContent === '') { 
+                evaluateQuaternionExpression(currentFunction, new Quaternion(0,0,0,0));
+                if (errorMessageDiv.textContent === '') {
                     createVisualization();
                     updateDisplay();
                 }
@@ -737,7 +740,7 @@
                 const wValueSlider = document.getElementById('wValue');
                 wValueSlider.disabled = (startingArrangement === 'grid4D');
                 if (startingArrangement === 'grid4D') {
-                    wValueSlider.style.opacity = '0.3'; 
+                    wValueSlider.style.opacity = '0.3';
                 } else {
                     wValueSlider.style.opacity = '1.0';
                 }
@@ -749,10 +752,10 @@
 
         function vector3ToScreenXY(vector, camera, containerRect) {
             const tempVector = vector.clone();
-            tempVector.project(camera); 
+            tempVector.project(camera);
 
             const x = (tempVector.x * 0.5 + 0.5) * containerRect.width;
-            const y = (tempVector.y * -0.5 + 0.5) * containerRect.height; 
+            const y = (tempVector.y * -0.5 + 0.5) * containerRect.height;
 
             return { x, y };
         }
@@ -777,10 +780,10 @@
 
         function onMouseMove(event) {
             const container = document.getElementById('canvas-container');
-            const rect = container.getBoundingClientRect(); 
+            const rect = container.getBoundingClientRect();
 
-            const mouseX = event.clientX - rect.left; 
-            const mouseY = event.clientY - rect.top;  
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
 
             let closestPointIndex = null;
             let minDistanceSq = Infinity;
@@ -793,7 +796,7 @@
 
             for (let i = 0; i < currentPointPositionsVector3.length; i++) {
                 const point3D = currentPointPositionsVector3[i];
-                
+
                 const screenXY = vector3ToScreenXY(point3D, camera, rect);
 
                 const dx = mouseX - screenXY.x;
@@ -811,8 +814,8 @@
                     intersected = closestPointIndex;
                     displayPointCoordinates(intersected);
                 }
-                coordinatesDisplayDiv.style.left = (event.clientX + 15) + 'px'; 
-                coordinatesDisplayDiv.style.top = (event.clientY + 15) + 'px';   
+                coordinatesDisplayDiv.style.left = (event.clientX + 15) + 'px';
+                coordinatesDisplayDiv.style.top = (event.clientY + 15) + 'px';
                 coordinatesDisplayDiv.style.display = 'block';
 
             } else {
@@ -837,18 +840,18 @@
             mappedLineColors = [];
             mappedLineIndices = [];
 
-            originalQuaternions = []; 
+            originalQuaternions = [];
             mappedQuaternions = [];
 
             const numPoints = density;
-            const step = 2.0 / (numPoints - 1); 
+            const step = 2.0 / (numPoints - 1);
 
             let minWInputForColor = parseFloat(document.getElementById('wValue').min);
             let maxWInputForColor = parseFloat(document.getElementById('wValue').max);
 
             if (startingArrangement === 'grid4D') {
-                 minWInputForColor = -1; 
-                 maxWInputForColor = 1;  
+                 minWInputForColor = -1;
+                 maxWInputForColor = 1;
             }
 
             let minOutputW = Infinity;
@@ -870,7 +873,7 @@
                     }
                 }
             } else if (startingArrangement === 'plane2D') {
-                const fixedZ = 0; 
+                const fixedZ = 0;
                 for (let i = 0; i < numPoints; i++) {
                     const x_in = -1 + i * step;
                     for (let j = 0; j < numPoints; j++) {
@@ -881,7 +884,7 @@
                 }
             } else if (startingArrangement === 'sphere') {
                 const radius = 1;
-                const numSpherePoints = density * density; 
+                const numSpherePoints = density * density;
                 for (let i = 0; i < numSpherePoints; i++) {
                     const phi = Math.acos(1 - 2 * (i / numSpherePoints));
                     const theta = Math.PI * (1 + Math.sqrt(5)) * i;
@@ -889,14 +892,14 @@
                     const x_in = radius * Math.cos(theta) * Math.sin(phi);
                     const y_in = radius * Math.sin(theta) * Math.sin(phi);
                     const z_in = radius * Math.cos(phi);
-                    
+
                     const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
                     inputQuaternions.push(q_in);
                 }
             } else if (startingArrangement === 'cubeEdges') {
                 const side = 2.0;
                 const halfSide = side / 2;
-                const pointsPerEdge = density; 
+                const pointsPerEdge = density;
 
                 const vertices = [];
                 for (let i = -1; i <= 1; i += 2) {
@@ -908,12 +911,12 @@
                 }
 
                 const edges = [
-                    [0, 1], [1, 3], [3, 2], [2, 0], 
-                    [4, 5], [5, 7], [7, 6], [6, 4], 
-                    [0, 4], [1, 5], [3, 7], [2, 6]  
+                    [0, 1], [1, 3], [3, 2], [2, 0],
+                    [4, 5], [5, 7], [7, 6], [6, 4],
+                    [0, 4], [1, 5], [3, 7], [2, 6]
                 ];
 
-                const addedPointsMap = new Map(); 
+                const addedPointsMap = new Map();
 
                 edges.forEach(edge => {
                     const v1 = vertices[edge[0]];
@@ -924,7 +927,7 @@
                         const x_in = v1.x * (1 - t) + v2.x * t;
                         const y_in = v1.y * (1 - t) + v2.y * t;
                         const z_in = v1.z * (1 - t) + v2.z * t;
-                        
+
                         const pointKey = `${x_in.toFixed(4)},${y_in.toFixed(4)},${z_in.toFixed(4)}`;
                         if (!addedPointsMap.has(pointKey)) {
                             inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
@@ -936,23 +939,23 @@
             } else if (startingArrangement === 'cubeFaces') {
                 const side = 2.0;
                 const halfSide = side / 2;
-                const pointsPerFaceDim = numPoints; 
+                const pointsPerFaceDim = numPoints;
 
                 for (let i = 0; i < pointsPerFaceDim; i++) {
                     const x_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const y_in = -halfSide + j * step;
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide)); 
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide)); 
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide));
+                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide));
                     }
                 }
                 for (let i = 0; i < pointsPerFaceDim; i++) {
                     const x_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const z_in = -halfSide + j * step;
-                        if (z_in !== halfSide && z_in !== -halfSide) { 
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in)); 
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in)); 
+                        if (z_in !== halfSide && z_in !== -halfSide) {
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in));
+                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in));
                         }
                     }
                 }
@@ -960,15 +963,15 @@
                     const y_in = -halfSide + i * step;
                     for (let j = 0; j < pointsPerFaceDim; j++) {
                         const z_in = -halfSide + j * step;
-                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) { 
-                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in)); 
-                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in)); 
+                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) {
+                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in));
+                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in));
                         }
                     }
                 }
             } else if (startingArrangement === 'grid4D') {
                 const grid4DPoints = density;
-                const step4D = 2.0 / (grid4DPoints - 1); 
+                const step4D = 2.0 / (grid4DPoints - 1);
 
                 for (let i = 0; i < grid4DPoints; i++) {
                     const w_in = -1 + i * step4D;
@@ -1014,14 +1017,14 @@
                     return;
                 }
                 outputQuaternions.push(q_out);
-                
+
                 minOutputW = Math.min(minOutputW, q_out.w);
                 maxOutputW = Math.max(maxOutputW, q_out.w);
             }
 
 
             if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
-                minOutputW = -5; 
+                minOutputW = -5;
                 maxOutputW = 5;
             }
 
@@ -1032,12 +1035,12 @@
                 originalPointPositions.push(q_in.x, q_in.y, q_in.z);
                 const originalColor = getColor(q_in.w, minWInputForColor, maxWInputForColor);
                 originalPointColors.push(originalColor.r, originalColor.g, originalColor.b);
-                originalQuaternions.push(q_in); 
+                originalQuaternions.push(q_in);
 
                 mappedPointPositions.push(q_out.x, q_out.y, q_out.z);
                 const mappedColor = getColor(q_out.w, minOutputW, maxOutputW);
                 mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
-                mappedQuaternions.push(q_out); 
+                mappedQuaternions.push(q_out);
             }
 
             const numLineSubdivisions = Math.max(10, Math.floor(20 / density));
@@ -1144,16 +1147,16 @@
                 }
 
                 const edges = [
-                    [0, 1], [1, 3], [3, 2], [2, 0], 
-                    [4, 5], [5, 7], [7, 6], [6, 4], 
-                    [0, 4], [1, 5], [3, 7], [2, 6]  
+                    [0, 1], [1, 3], [3, 2], [2, 0],
+                    [4, 5], [5, 7], [7, 6], [6, 4],
+                    [0, 4], [1, 5], [3, 7], [2, 6]
                 ];
 
                 edges.forEach(edge => {
                     const v1 = vertices[edge[0]];
                     const v2 = vertices[edge[1]];
 
-                    for (let i = 0; i < pointsPerEdge - 1; i++) { 
+                    for (let i = 0; i < pointsPerEdge - 1; i++) {
                         const t1 = i / (pointsPerEdge - 1);
                         const t2 = (i + 1) / (pointsPerEdge - 1);
 
@@ -1161,7 +1164,7 @@
                         const q1_y = v1.y * (1 - t1) + v2.y * t1;
                         const q1_z = v1.z * (1 - t1) + v2.z * t1;
                         const q1 = new Quaternion(wFixed, q1_x, q1_y, q1_z);
-                        
+
                         const q2_x = v1.x * (1 - t2) + v2.x * t2;
                         const q2_y = v1.y * (1 - t2) + v2.y * t2;
                         const q2_z = v1.z * (1 - t2) + v2.z * t2;
@@ -1175,7 +1178,7 @@
                 const halfSide = side / 2;
                 const pointsPerFaceDim = numPoints;
                 const faceStep = side / (pointsPerFaceDim - 1);
-                
+
                 const generateFaceLines = (fixedAxis, fixedVal) => {
                     for (let i = 0; i < pointsPerFaceDim; i++) {
                         const coord1_val = -halfSide + i * faceStep;
@@ -1206,7 +1209,7 @@
                         }
                     }
                 };
-                
+
                 generateFaceLines('z', halfSide);
                 generateFaceLines('z', -halfSide);
                 generateFaceLines('y', halfSide);
