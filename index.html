@@ -133,7 +133,7 @@
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
             background-color: #444;
             color: white;
         }
@@ -196,6 +196,7 @@
                     <select id="lineDisplayMode">
                         <option value="none">No Lines</option>
                         <option value="show">Show Lines</option>
+                        <option value="faces">Show Faces</option>
                     </select>
                 </div>
 
@@ -242,6 +243,7 @@
         let scene, camera, renderer, controls;
         let pointsMesh;
         let linesMesh;
+        let facesMesh;
         let wFixed = 0.5;
         let density = 10;
         let pointSizeFactor = 1.0;
@@ -255,16 +257,27 @@
         let originalLinePositions = [];
         let originalLineColors = [];
         let originalLineIndices = [];
+        let originalFacePositions = [];
+        let originalFaceColors = [];
+        let originalFaceIndices = [];
 
         let mappedPointPositions = [];
         let mappedPointColors = [];
         let mappedLinePositions = [];
         let mappedLineColors = [];
         let mappedLineIndices = [];
+        let mappedFacePositions = [];
+        let mappedFaceColors = [];
+        let mappedFaceIndices = [];
 
         let currentTokenIndex = 0;
         let tokens = [];
         let q_input_for_parser;
+
+        // Global arrays for quaternions (populated first, then used for points, lines, faces)
+        let originalQuaternions = [];
+        let mappedQuaternions = [];
+
 
         // Variables for mouse interaction
         let intersected = null;
@@ -328,8 +341,13 @@
             }
 
             divide(q2) {
+                if (!(q2 instanceof Quaternion)) {
+                    return new Quaternion(NaN, NaN, NaN, NaN);
+                }
                 const normSq = q2.w * q2.w + q2.x * q2.x + q2.y * q2.y + q2.z * q2.z;
-                if (normSq === 0) throw new Error("Division by zero quaternion.");
+                if (normSq === 0) {
+                    return new Quaternion(NaN, NaN, NaN, NaN);
+                }
                 const q2_inv = new Quaternion(q2.w / normSq, -q2.x / normSq, -q2.y / normSq, -q2.z / normSq);
                 return this.multiply(q2_inv);
             }
@@ -339,6 +357,7 @@
                 if (n === 1) return this;
                 if (n < 0) {
                     const inv = this.inverse();
+                    if (isNaN(inv.w)) return new Quaternion(NaN, NaN, NaN, NaN);
                     return inv.pow(Math.abs(n));
                 }
 
@@ -349,8 +368,10 @@
                 while (exponent > 0) {
                     if (exponent % 2 === 1) {
                         result = result.multiply(base);
+                        if (isNaN(result.w)) return new Quaternion(NaN, NaN, NaN, NaN);
                     }
                     base = base.multiply(base);
+                    if (isNaN(base.w)) return new Quaternion(NaN, NaN, NaN, NaN);
                     exponent = Math.floor(exponent / 2);
                 }
                 return result;
@@ -366,7 +387,9 @@
 
             inverse() {
                 const normSq = this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z;
-                if (normSq === 0) throw new Error("Cannot compute inverse of zero quaternion.");
+                if (normSq === 0) {
+                    return new Quaternion(NaN, NaN, NaN, NaN);
+                }
                 return this.conjugate().scalarMultiply(1 / normSq);
             }
 
@@ -451,7 +474,7 @@
         function parse(expression, q_in) {
             tokens = tokenize(expression);
             currentTokenIndex = 0;
-            q_input_for_parser = q_in;
+            q_input_for_parser = q_in !== null ? q_in : new Quaternion(0, 0, 0, 0);
 
             const result = parseExpression();
 
@@ -484,6 +507,7 @@
                 } else {
                     result = result.subtract(right);
                 }
+                if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
             }
             return result;
         }
@@ -498,26 +522,27 @@
                 } else {
                     result = result.divide(right);
                 }
+                if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
             }
             return result;
         }
 
         function parseFactor() {
             let result = parsePrimary();
-            // This loop handles implied multiplication (e.g., "2q", "q(i+j)").
-            // It should NOT imply multiplication if the next token is an operator like '+', '-', '*', '/', or '^'.
-            // Only specific tokens that begin a new primary expression without an explicit operator
-            // should trigger implied multiplication.
+            if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
+
             while (peek() &&
-                   (peek().type === 'NUMBER' || // e.g., 'q 2' or 'q(2)'
-                    peek().type === 'Q' ||      // e.g., 'qq'
-                    peek().type === 'I' ||      // e.g., 'q i'
+                   (peek().type === 'NUMBER' ||
+                    peek().type === 'Q' ||
+                    peek().type === 'I' ||
                     peek().type === 'J' ||
                     peek().type === 'K' ||
-                    peek().type === 'FUNCTION' || // e.g., 'q norm(x)'
-                    peek().type === '(')) {     // e.g., 'q (i+j)'
+                    peek().type === 'FUNCTION' ||
+                    peek().type === '(')) {
                 const nextPrimary = parsePrimary();
+                if (isNaN(nextPrimary.w)) return new Quaternion(NaN,NaN,NaN,NaN);
                 result = result.multiply(nextPrimary);
+                if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
             }
             if (peek() && peek().type === '^') {
                 consume('^');
@@ -526,6 +551,7 @@
                     const exponent = consume('NUMBER').value;
                     if (Number.isInteger(exponent)) {
                         result = result.pow(exponent);
+                        if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
                     } else {
                         throw new Error("Only integer exponents are supported for quaternion power.");
                     }
@@ -560,27 +586,36 @@
                 consume('(');
                 const arg = parseExpression();
                 consume(')');
+                if (isNaN(arg.w)) return new Quaternion(NaN,NaN,NaN,NaN);
+
+                let funcResult;
                 switch (funcName) {
-                    case 'norm': return new Quaternion(arg.norm(), 0, 0, 0);
-                    case 'conj': return arg.conjugate();
-                    case 'inv': return arg.inverse();
-                    case 're': return arg.re();
-                    case 'im': return arg.im();
-                    case 'w_comp': return new Quaternion(arg.w_comp(), 0, 0, 0);
-                    case 'x_comp': return new Quaternion(arg.x_comp(), 0, 0, 0);
-                    case 'y_comp': return new Quaternion(arg.y_comp(), 0, 0, 0);
-                    case 'z_comp': return new Quaternion(arg.z_comp(), 0, 0, 0);
+                    case 'norm': funcResult = new Quaternion(arg.norm(), 0, 0, 0); break;
+                    case 'conj': funcResult = arg.conjugate(); break;
+                    case 'inv': funcResult = arg.inverse(); break;
+                    case 're': funcResult = arg.re(); break;
+                    case 'im': funcResult = arg.im(); break;
+                    case 'w_comp': funcResult = new Quaternion(arg.w_comp(), 0, 0, 0); break;
+                    case 'x_comp': funcResult = new Quaternion(arg.x_comp(), 0, 0, 0); break;
+                    case 'y_comp': funcResult = new Quaternion(arg.y_comp(), 0, 0, 0); break;
+                    case 'z_comp': funcResult = new Quaternion(arg.z_comp(), 0, 0, 0); break;
                     default: throw new Error(`Unknown function: ${funcName}`);
                 }
+                if (isNaN(funcResult.w)) return new Quaternion(NaN,NaN,NaN,NaN);
+                return funcResult;
             } else if (token.type === '(') {
                 consume('(');
                 const result = parseExpression();
                 consume(')');
+                if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
                 return result;
-            } else if (token.type === '-') { // Handle unary minus here, e.g., '-5' or '-q'
+            } else if (token.type === '-') {
                 consume('-');
-                const operand = parsePrimary(); // Recursively parse the operand for the unary minus
-                return operand.scalarMultiply(-1);
+                const operand = parsePrimary();
+                if (isNaN(operand.w)) return new Quaternion(NaN,NaN,NaN,NaN);
+                const result = operand.scalarMultiply(-1);
+                if (isNaN(result.w)) return new Quaternion(NaN,NaN,NaN,NaN);
+                return result;
             } else {
                 throw new Error(`Unexpected token: ${token.type}`);
             }
@@ -588,22 +623,38 @@
 
         function evaluateQuaternionExpression(expression, q_in) {
             const errorMessageDiv = document.getElementById('errorMessage');
-            errorMessageDiv.textContent = '';
+            if (q_in === null) {
+                errorMessageDiv.textContent = ''; // Clear error message for new input
+            }
 
             try {
                 expression = expression.trim().toLowerCase();
-                const result = parse(expression, q_in);
-                if (!(result instanceof Quaternion)) {
-                    throw new Error("Function must return a quaternion.");
+                if (expression === '') {
+                    return new Quaternion(0, 0, 0, 0);
                 }
+                const result = parse(expression, q_in);
+                
+                // If the result is a Quaternion but contains NaN components, propagate it.
+                // Do NOT set errorMessageDiv here, as it's a mathematical result, not a syntax error.
+                if (result instanceof Quaternion && (isNaN(result.w) || isNaN(result.x) || isNaN(result.y) || isNaN(result.z))) {
+                    return new Quaternion(NaN, NaN, NaN, NaN);
+                }
+
+                // If parsing succeeded and resulted in a valid Quaternion, return it.
                 return result;
             } catch (error) {
-                errorMessageDiv.textContent = `Error: ${error.message}`;
-                return new Quaternion(0, 0, 0, 0);
+                // Catch actual parsing/syntax errors (e.g., "q+" or "unknown_func()")
+                if (q_in === null) { // Only show syntax errors for the main input field
+                    errorMessageDiv.textContent = `Error: ${error.message}`;
+                }
+                return new Quaternion(NaN, NaN, NaN, NaN); // Return NaN quaternion on parsing errors
             }
         }
 
         function getColor(value, minVal, maxVal) {
+            if (isNaN(value)) {
+                return new THREE.Color(0xff0000);
+            }
             if (minVal === maxVal) {
                 return new THREE.Color(0x808080);
             }
@@ -684,8 +735,8 @@
             coordinatesDisplayDiv = document.getElementById('coordinatesDisplayDiv');
             container.addEventListener('mousemove', onMouseMove, false);
 
-            createVisualization();
-            updateDisplay();
+            createVisualization(); // Initial creation of all data
+            updateDisplay(); // Initial display based on current settings
 
             // Set initial button text correctly as it starts in Mapped View
             document.getElementById('toggleViewBtn').textContent = "Show Original View";
@@ -696,43 +747,41 @@
                 wFixed = parseFloat(event.target.value);
                 document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
                 if (startingArrangement !== 'grid4D') {
-                    createVisualization();
+                    createVisualization(); // Regenerate data
                 }
-                updateDisplay();
+                updateDisplay(); // Update display
             });
 
             document.getElementById('density').addEventListener('input', (event) => {
                 density = parseInt(event.target.value);
                 document.getElementById('densityDisplay').textContent = density;
-                createVisualization();
-                updateDisplay();
+                createVisualization(); // Regenerate data
+                updateDisplay(); // Update display
             });
 
             document.getElementById('pointSizeFactor').addEventListener('input', (event) => {
                 pointSizeFactor = parseFloat(event.target.value);
                 document.getElementById('pointSizeFactorDisplay').textContent = pointSizeFactor.toFixed(2);
-                updateDisplay();
+                updateDisplay(); // Update display (no data regeneration needed)
             });
 
             document.getElementById('functionInput').addEventListener('input', (event) => {
                 currentFunction = event.target.value;
-                const errorMessageDiv = document.getElementById('errorMessage');
-                evaluateQuaternionExpression(currentFunction, new Quaternion(0,0,0,0));
-                if (errorMessageDiv.textContent === '') {
-                    createVisualization();
-                    updateDisplay();
-                }
+                // Always attempt to create and update, let createVisualization handle NaNs
+                createVisualization();
+                updateDisplay();
             });
 
             document.getElementById('toggleViewBtn').addEventListener('click', () => {
                 showMappedView = !showMappedView;
                 document.getElementById('toggleViewBtn').textContent = showMappedView ? "Show Original View" : "Show Mapped View";
-                updateDisplay();
+                updateDisplay(); // Update display (no data regeneration needed)
             });
 
             lineDisplayModeSelect.addEventListener('change', (event) => {
                 lineDisplayMode = event.target.value;
-                updateDisplay();
+                // No need to call createVisualization here, as all data is already generated
+                updateDisplay(); // Just update display
             });
 
             startingArrangementSelect.addEventListener('change', (event) => {
@@ -745,9 +794,27 @@
                     wValueSlider.style.opacity = '1.0';
                 }
 
-                createVisualization();
-                updateDisplay();
+                createVisualization(); // Regenerate data
+                updateDisplay(); // Update display
             });
+        }
+
+        function clearVisualization() {
+            if (pointsMesh) { scene.remove(pointsMesh); pointsMesh.geometry.dispose(); pointsMesh.material.dispose(); pointsMesh = null; }
+            if (linesMesh) { scene.remove(linesMesh); linesMesh.geometry.dispose(); linesMesh.material.dispose(); linesMesh = null; }
+            if (facesMesh) { scene.remove(facesMesh); facesMesh.geometry.dispose(); facesMesh.material.dispose(); facesMesh = null; }
+            coordinatesDisplayDiv.style.display = 'none';
+            currentPointPositionsVector3 = [];
+            originalQuaternions = [];
+            mappedQuaternions = [];
+            originalPointPositions = [];
+            originalPointColors = [];
+            mappedPointPositions = [];
+            mappedPointColors = [];
+            originalLinePositions = []; originalLineColors = []; originalLineIndices = [];
+            mappedLinePositions = []; mappedLineColors = []; mappedLineIndices = [];
+            originalFacePositions = []; originalFaceColors = []; originalFaceIndices = [];
+            mappedFacePositions = []; mappedFaceColors = []; mappedFaceIndices = [];
         }
 
         function vector3ToScreenXY(vector, camera, containerRect) {
@@ -768,13 +835,15 @@
                 quaternionData = originalQuaternions[pointIndex];
             }
 
-            if (quaternionData) {
+            if (quaternionData && !isNaN(quaternionData.w)) {
                 coordinatesDisplayDiv.innerHTML = `
                     w: ${quaternionData.w.toFixed(4)}<br>
                     x: ${quaternionData.x.toFixed(4)}<br>
                     y: ${quaternionData.y.toFixed(4)}<br>
                     z: ${quaternionData.z.toFixed(4)}
                 `;
+            } else {
+                coordinatesDisplayDiv.innerHTML = `Invalid Point`;
             }
         }
 
@@ -796,6 +865,10 @@
 
             for (let i = 0; i < currentPointPositionsVector3.length; i++) {
                 const point3D = currentPointPositionsVector3[i];
+
+                if (isNaN(point3D.x) || isNaN(point3D.y) || isNaN(point3D.z)) {
+                    continue;
+                }
 
                 const screenXY = vector3ToScreenXY(point3D, camera, rect);
 
@@ -828,17 +901,24 @@
 
 
         function createVisualization() {
+            // Clear all data arrays before regenerating
             originalPointPositions = [];
             originalPointColors = [];
             originalLinePositions = [];
             originalLineColors = [];
             originalLineIndices = [];
+            originalFacePositions = [];
+            originalFaceColors = [];
+            originalFaceIndices = [];
 
             mappedPointPositions = [];
             mappedPointColors = [];
             mappedLinePositions = [];
             mappedLineColors = [];
             mappedLineIndices = [];
+            mappedFacePositions = [];
+            mappedFaceColors = [];
+            mappedFaceIndices = [];
 
             originalQuaternions = [];
             mappedQuaternions = [];
@@ -857,9 +937,7 @@
             let minOutputW = Infinity;
             let maxOutputW = -Infinity;
 
-            const inputQuaternions = [];
-            const outputQuaternions = [];
-
+            // Generate all original quaternions based on starting arrangement
             if (startingArrangement === 'grid3D') {
                 for (let i = 0; i < numPoints; i++) {
                     const x_in = -1 + i * step;
@@ -867,8 +945,7 @@
                         const y_in = -1 + j * step;
                         for (let k = 0; k < numPoints; k++) {
                             const z_in = -1 + k * step;
-                            const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
-                            inputQuaternions.push(q_in);
+                            originalQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
                         }
                     }
                 }
@@ -878,23 +955,29 @@
                     const x_in = -1 + i * step;
                     for (let j = 0; j < numPoints; j++) {
                         const y_in = -1 + j * step;
-                        const q_in = new Quaternion(wFixed, x_in, y_in, fixedZ);
-                        inputQuaternions.push(q_in);
+                        originalQuaternions.push(new Quaternion(wFixed, x_in, y_in, fixedZ));
                     }
                 }
             } else if (startingArrangement === 'sphere') {
                 const radius = 1;
-                const numSpherePoints = density * density;
-                for (let i = 0; i < numSpherePoints; i++) {
-                    const phi = Math.acos(1 - 2 * (i / numSpherePoints));
-                    const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+                const latSegments = density;
+                const lonSegments = density * 2;
 
-                    const x_in = radius * Math.cos(theta) * Math.sin(phi);
-                    const y_in = radius * Math.sin(theta) * Math.sin(phi);
-                    const z_in = radius * Math.cos(phi);
+                for (let lat = 0; lat <= latSegments; lat++) {
+                    const theta = lat * Math.PI / latSegments;
+                    const sinTheta = Math.sin(theta);
+                    const cosTheta = Math.cos(theta);
 
-                    const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
-                    inputQuaternions.push(q_in);
+                    for (let lon = 0; lon <= lonSegments; lon++) {
+                        const phi = lon * 2 * Math.PI / lonSegments;
+                        const sinPhi = Math.sin(phi);
+                        const cosPhi = Math.cos(phi);
+
+                        const x_in = radius * cosPhi * sinTheta;
+                        const y_in = radius * sinPhi * sinTheta;
+                        const z_in = radius * cosTheta;
+                        originalQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
+                    }
                 }
             } else if (startingArrangement === 'cubeEdges') {
                 const side = 2.0;
@@ -930,45 +1013,35 @@
 
                         const pointKey = `${x_in.toFixed(4)},${y_in.toFixed(4)},${z_in.toFixed(4)}`;
                         if (!addedPointsMap.has(pointKey)) {
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
-                            addedPointsMap.set(pointKey, inputQuaternions.length - 1);
+                            originalQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
+                            addedPointsMap.set(pointKey, originalQuaternions.length - 1);
                         }
                     }
                 });
-
             } else if (startingArrangement === 'cubeFaces') {
                 const side = 2.0;
                 const halfSide = side / 2;
                 const pointsPerFaceDim = numPoints;
+                const stepFace = side / (pointsPerFaceDim - 1);
 
-                for (let i = 0; i < pointsPerFaceDim; i++) {
-                    const x_in = -halfSide + i * step;
-                    for (let j = 0; j < pointsPerFaceDim; j++) {
-                        const y_in = -halfSide + j * step;
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, halfSide));
-                        inputQuaternions.push(new Quaternion(wFixed, x_in, y_in, -halfSide));
-                    }
-                }
-                for (let i = 0; i < pointsPerFaceDim; i++) {
-                    const x_in = -halfSide + i * step;
-                    for (let j = 0; j < pointsPerFaceDim; j++) {
-                        const z_in = -halfSide + j * step;
-                        if (z_in !== halfSide && z_in !== -halfSide) {
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, halfSide, z_in));
-                            inputQuaternions.push(new Quaternion(wFixed, x_in, -halfSide, z_in));
+                const generateFacePoints = (fixedAxis, fixedVal) => {
+                    for (let i = 0; i < pointsPerFaceDim; i++) {
+                        const coord1_val = -halfSide + i * stepFace;
+                        for (let j = 0; j < pointsPerFaceDim; j++) {
+                            const coord2_val = -halfSide + j * stepFace;
+                            if (fixedAxis === 'x') originalQuaternions.push(new Quaternion(wFixed, fixedVal, coord1_val, coord2_val));
+                            else if (fixedAxis === 'y') originalQuaternions.push(new Quaternion(wFixed, coord1_val, fixedVal, coord2_val));
+                            else originalQuaternions.push(new Quaternion(wFixed, coord1_val, coord2_val, fixedVal));
                         }
                     }
-                }
-                for (let i = 0; i < pointsPerFaceDim; i++) {
-                    const y_in = -halfSide + i * step;
-                    for (let j = 0; j < pointsPerFaceDim; j++) {
-                        const z_in = -halfSide + j * step;
-                        if (y_in !== halfSide && y_in !== -halfSide && z_in !== halfSide && z_in !== -halfSide) {
-                            inputQuaternions.push(new Quaternion(wFixed, halfSide, y_in, z_in));
-                            inputQuaternions.push(new Quaternion(wFixed, -halfSide, y_in, z_in));
-                        }
-                    }
-                }
+                };
+
+                generateFacePoints('z', halfSide);
+                generateFacePoints('z', -halfSide);
+                generateFacePoints('y', halfSide);
+                generateFacePoints('y', -halfSide);
+                generateFacePoints('x', halfSide);
+                generateFacePoints('x', -halfSide);
             } else if (startingArrangement === 'grid4D') {
                 const grid4DPoints = density;
                 const step4D = 2.0 / (grid4DPoints - 1);
@@ -981,72 +1054,76 @@
                             const y_in = -1 + l * step4D;
                             for (let m = 0; m < grid4DPoints; m++) {
                                 const z_in = -1 + m * step4D;
-                                const q_in = new Quaternion(w_in, x_in, y_in, z_in);
-                                inputQuaternions.push(q_in);
+                                originalQuaternions.push(new Quaternion(w_in, x_in, y_in, z_in));
                             }
                         }
                     }
                 }
-            } else if (startingArrangement === 'torus') { // NEW TORUS ARRANGEMENT
-                const majorRadius = 1.0; // R
-                const minorRadius = 0.4;  // r
-                const numSegmentsU = density; // Points along major circle
-                const numSegmentsV = density; // Points along minor circle
+            } else if (startingArrangement === 'torus') {
+                const majorRadius = 1.0;
+                const minorRadius = 0.4;
+                const numSegmentsU = density * 2;
+                const numSegmentsV = density;
 
-                for (let i = 0; i < numSegmentsU; i++) {
+                for (let i = 0; i <= numSegmentsU; i++) {
                     const u = (i / numSegmentsU) * 2 * Math.PI;
-                    for (let j = 0; j < numSegmentsV; j++) {
+                    for (let j = 0; j <= numSegmentsV; j++) {
                         const v = (j / numSegmentsV) * 2 * Math.PI;
 
                         const x_in = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
                         const y_in = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
                         const z_in = minorRadius * Math.sin(v);
-
-                        const q_in = new Quaternion(wFixed, x_in, y_in, z_in);
-                        inputQuaternions.push(q_in);
+                        originalQuaternions.push(new Quaternion(wFixed, x_in, y_in, z_in));
                     }
                 }
             }
 
+            // Evaluate all original quaternions to get mapped quaternions
+            for(const q_in of originalQuaternions) {
+                const q_out = evaluateQuaternionExpression(currentFunction, q_in);
+                mappedQuaternions.push(q_out);
 
-            for(const q_in of inputQuaternions) {
-                let q_out;
-                try {
-                    q_out = evaluateQuaternionExpression(currentFunction, q_in);
-                } catch (e) {
-                    return;
+                if (!isNaN(q_out.w)) {
+                    minOutputW = Math.min(minOutputW, q_out.w);
+                    maxOutputW = Math.max(maxOutputW, q_out.w);
                 }
-                outputQuaternions.push(q_out);
-
-                minOutputW = Math.min(minOutputW, q_out.w);
-                maxOutputW = Math.max(maxOutputW, q_out.w);
             }
-
 
             if (minOutputW === Infinity || maxOutputW === -Infinity || minOutputW === maxOutputW) {
                 minOutputW = -5;
                 maxOutputW = 5;
             }
 
-            for (let i = 0; i < inputQuaternions.length; i++) {
-                const q_in = inputQuaternions[i];
-                const q_out = outputQuaternions[i];
+            // Populate point positions and colors from the global quaternion arrays
+            for (let i = 0; i < originalQuaternions.length; i++) {
+                const q_in = originalQuaternions[i];
+                const q_out = mappedQuaternions[i];
 
-                originalPointPositions.push(q_in.x, q_in.y, q_in.z);
-                const originalColor = getColor(q_in.w, minWInputForColor, maxWInputForColor);
-                originalPointColors.push(originalColor.r, originalColor.g, originalColor.b);
-                originalQuaternions.push(q_in);
+                if (!isNaN(q_out.x) && !isNaN(q_out.y) && !isNaN(q_out.z)) {
+                    originalPointPositions.push(q_in.x, q_in.y, q_in.z);
+                    const originalColor = getColor(q_in.w, minWInputForColor, maxWInputForColor);
+                    originalPointColors.push(originalColor.r, originalColor.g, originalColor.b);
 
-                mappedPointPositions.push(q_out.x, q_out.y, q_out.z);
-                const mappedColor = getColor(q_out.w, minOutputW, maxOutputW);
-                mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
-                mappedQuaternions.push(q_out);
+                    mappedPointPositions.push(q_out.x, q_out.y, q_out.z);
+                    const mappedColor = getColor(q_out.w, minOutputW, maxOutputW);
+                    mappedPointColors.push(mappedColor.r, mappedColor.g, mappedColor.b);
+                }
             }
+
 
             const numLineSubdivisions = Math.max(10, Math.floor(20 / density));
             let currentLinePointIdx = 0;
 
-            const addLineSegment = (q1_in, q2_in) => {
+            // Helper to add a line segment using originalQuaternions indices
+            const addLineSegment = (idx1, idx2) => {
+                const q1_in = originalQuaternions[idx1];
+                const q2_in = originalQuaternions[idx2];
+
+                // Skip line if either endpoint's mapped quaternion is invalid
+                if (isNaN(mappedQuaternions[idx1].w) || isNaN(mappedQuaternions[idx2].w)) {
+                    return;
+                }
+
                 for (let s = 0; s <= numLineSubdivisions; s++) {
                     const t = s / numLineSubdivisions;
 
@@ -1058,84 +1135,205 @@
 
                     const q_interp_out = evaluateQuaternionExpression(currentFunction, q_interp_in);
 
-                    originalLinePositions.push(q_interp_in.x, q_interp_in.y, q_interp_in.z);
-                    const originalLineColor = getColor(q_interp_in.w, minWInputForColor, maxWInputForColor);
-                    originalLineColors.push(originalLineColor.r, originalLineColor.g, originalLineColor.b);
+                    if (isNaN(q_interp_out.w)) {
+                        originalLinePositions.push(NaN, NaN, NaN);
+                        originalLineColors.push(0, 0, 0);
+                        mappedLinePositions.push(NaN, NaN, NaN);
+                        mappedLineColors.push(0, 0, 0);
+                    } else {
+                        originalLinePositions.push(q_interp_in.x, q_interp_in.y, q_interp_in.z);
+                        const originalLineColor = getColor(q_interp_in.w, minWInputForColor, maxWInputForColor);
+                        originalLineColors.push(originalLineColor.r, originalLineColor.g, originalLineColor.b);
 
-                    mappedLinePositions.push(q_interp_out.x, q_interp_out.y, q_interp_out.z);
-                    const mappedLineColor = getColor(q_interp_out.w, minOutputW, maxOutputW);
-                    mappedLineColors.push(mappedLineColor.r, mappedLineColor.g, mappedLineColor.b);
+                        mappedLinePositions.push(q_interp_out.x, q_interp_out.y, q_interp_out.z);
+                        const mappedLineColor = getColor(q_interp_out.w, minOutputW, maxOutputW);
+                        mappedLineColors.push(mappedLineColor.r, mappedLineColor.g, mappedLineColor.b);
+                    }
+
 
                     if (s > 0) {
-                        originalLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
-                        mappedLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
+                        const prevPointValid = !isNaN(mappedLinePositions[(currentLinePointIdx - 1) * 3]);
+                        const currPointValid = !isNaN(mappedLinePositions[currentLinePointIdx * 3]);
+
+                        if (prevPointValid && currPointValid) {
+                            originalLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
+                            mappedLineIndices.push(currentLinePointIdx - 1, currentLinePointIdx);
+                        }
                     }
                     currentLinePointIdx++;
                 }
             };
 
-            const getQuaternionIndex = (w, x, y, z, tolerance = 0.0001) => {
-                for (let i = 0; i < inputQuaternions.length; i++) {
-                    const q = inputQuaternions[i];
-                    if (Math.abs(q.w - w) < tolerance &&
-                        Math.abs(q.x - x) < tolerance &&
-                        Math.abs(q.y - y) < tolerance &&
-                        Math.abs(q.z - z) < tolerance) {
-                        return i;
+            // Helper to add a quad (two triangles) to face data, with subdivision
+            const addQuadFaces = (q00_in_corner, q10_in_corner, q01_in_corner, q11_in_corner, minWInputForColor, minOutputW, maxOutputW) => {
+                const faceSubdivisions = 5;
+
+                const interpolatedOriginalQuaternions = [];
+                const interpolatedMappedQuaternions = [];
+
+                for (let v_step = 0; v_step <= faceSubdivisions; v_step++) {
+                    const v = v_step / faceSubdivisions;
+                    for (let u_step = 0; u_step <= faceSubdivisions; u_step++) {
+                        const u = u_step / faceSubdivisions;
+
+                        const interp_w_in = (1 - u) * (1 - v) * q00_in_corner.w + u * (1 - v) * q10_in_corner.w + (1 - u) * v * q01_in_corner.w + u * v * q11_in_corner.w;
+                        const interp_x_in = (1 - u) * (1 - v) * q00_in_corner.x + u * (1 - v) * q10_in_corner.x + (1 - u) * v * q01_in_corner.x + u * v * q11_in_corner.x;
+                        const interp_y_in = (1 - u) * (1 - v) * q00_in_corner.y + u * (1 - v) * q10_in_corner.y + (1 - u) * v * q01_in_corner.y + u * v * q11_in_corner.y;
+                        const interp_z_in = (1 - u) * (1 - v) * q00_in_corner.z + u * (1 - v) * q10_in_corner.z + (1 - u) * v * q01_in_corner.z + u * v * q11_in_corner.z;
+                        const q_interp_in = new Quaternion(interp_w_in, interp_x_in, interp_y_in, interp_z_in);
+                        interpolatedOriginalQuaternions.push(q_interp_in);
+
+                        const q_interp_out = evaluateQuaternionExpression(currentFunction, q_interp_in);
+                        interpolatedMappedQuaternions.push(q_interp_out);
                     }
                 }
-                return -1;
+
+                const currentGlobalVertexCountAtStartOfFace = originalFacePositions.length / 3;
+
+                for (let v_sub = 0; v_sub < faceSubdivisions; v_sub++) {
+                    for (let u_sub = 0; u_sub < faceSubdivisions; u_sub++) {
+                        const p00_idx_local = v_sub * (faceSubdivisions + 1) + u_sub;
+                        const p10_idx_local = v_sub * (faceSubdivisions + 1) + (u_sub + 1);
+                        const p01_idx_local = (v_sub + 1) * (faceSubdivisions + 1) + u_sub;
+                        const p11_idx_local = (v_sub + 1) * (faceSubdivisions + 1) + (u_sub + 1);
+
+                        const p00_in_sub = interpolatedOriginalQuaternions[p00_idx_local];
+                        const p10_in_sub = interpolatedOriginalQuaternions[p10_idx_local];
+                        const p01_in_sub = interpolatedOriginalQuaternions[p01_idx_local];
+                        const p11_in_sub = interpolatedOriginalQuaternions[p11_idx_local];
+
+                        const p00_out_sub = interpolatedMappedQuaternions[p00_idx_local];
+                        const p10_out_sub = interpolatedMappedQuaternions[p10_idx_local];
+                        const p01_out_sub = interpolatedMappedQuaternions[p01_idx_local];
+                        const p11_out_sub = interpolatedMappedQuaternions[p11_idx_local];
+
+                        if (isNaN(p00_out_sub.w) || isNaN(p10_out_sub.w) || isNaN(p01_out_sub.w) || isNaN(p11_out_sub.w)) {
+                            continue;
+                        }
+
+                        const currentVertexOffset = originalFacePositions.length / 3;
+
+                        originalFacePositions.push(p00_in_sub.x, p00_in_sub.y, p00_in_sub.z);
+                        originalFacePositions.push(p10_in_sub.x, p10_in_sub.y, p10_in_sub.z);
+                        originalFacePositions.push(p01_in_sub.x, p01_in_sub.y, p01_in_sub.z);
+                        originalFacePositions.push(p11_in_sub.x, p11_in_sub.y, p11_in_sub.z);
+
+                        originalFaceColors.push(...getColor(p00_in_sub.w, minWInputForColor, maxWInputForColor).toArray());
+                        originalFaceColors.push(...getColor(p10_in_sub.w, minWInputForColor, maxWInputForColor).toArray());
+                        originalFaceColors.push(...getColor(p01_in_sub.w, minWInputForColor, maxWInputForColor).toArray());
+                        originalFaceColors.push(...getColor(p11_in_sub.w, minWInputForColor, maxWInputForColor).toArray());
+
+                        mappedFacePositions.push(p00_out_sub.x, p00_out_sub.y, p00_out_sub.z);
+                        mappedFacePositions.push(p10_out_sub.x, p10_out_sub.y, p10_out_sub.z);
+                        mappedFacePositions.push(p01_out_sub.x, p01_out_sub.y, p01_out_sub.z);
+                        mappedFacePositions.push(p11_out_sub.x, p11_out_sub.y, p11_out_sub.z);
+
+                        mappedFaceColors.push(...getColor(p00_out_sub.w, minOutputW, maxOutputW).toArray());
+                        mappedFaceColors.push(...getColor(p10_out_sub.w, minOutputW, maxOutputW).toArray());
+                        mappedFaceColors.push(...getColor(p01_out_sub.w, minOutputW, maxOutputW).toArray());
+                        mappedFaceColors.push(...getColor(p11_out_sub.w, minOutputW, maxOutputW).toArray());
+
+                        originalFaceIndices.push(currentVertexOffset, currentVertexOffset + 1, currentVertexOffset + 2);
+                        mappedFaceIndices.push(currentVertexOffset, currentVertexOffset + 1, currentVertexOffset + 2);
+
+                        originalFaceIndices.push(currentVertexOffset + 1, currentVertexOffset + 3, currentVertexOffset + 2);
+                        mappedFaceIndices.push(currentVertexOffset + 1, currentVertexOffset + 3, currentVertexOffset + 2);
+                    }
+                }
             };
 
+
+            // Generate lines and faces for each arrangement type
             if (startingArrangement === 'grid3D') {
+                const getGridIdx = (i, j, k) => i * numPoints * numPoints + j * numPoints + k;
+
                 for (let i = 0; i < numPoints; i++) {
-                    const x_in = -1 + i * step;
                     for (let j = 0; j < numPoints; j++) {
-                        const y_in = -1 + j * step;
                         for (let k = 0; k < numPoints; k++) {
-                            const z_in = -1 + k * step;
-                            const q_current_in = new Quaternion(wFixed, x_in, y_in, z_in);
+                            const currentIdx = getGridIdx(i, j, k);
 
                             if (i < numPoints - 1) {
-                                const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, z_in);
-                                addLineSegment(q_current_in, q_nextX_in);
+                                addLineSegment(currentIdx, getGridIdx(i + 1, j, k));
                             }
                             if (j < numPoints - 1) {
-                                const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, z_in);
-                                addLineSegment(q_current_in, q_nextY_in);
+                                addLineSegment(currentIdx, getGridIdx(i, j + 1, k));
                             }
                             if (k < numPoints - 1) {
-                                const q_nextZ_in = new Quaternion(wFixed, x_in, y_in, z_in + step);
-                                addLineSegment(q_current_in, q_nextZ_in);
+                                addLineSegment(currentIdx, getGridIdx(i, j, k + 1));
                             }
                         }
                     }
                 }
+
+                // Always generate faces for grid3D, display handled by updateDisplay()
+                for (let i = 0; i < numPoints - 1; i++) {
+                    for (let j = 0; j < numPoints - 1; j++) {
+                        addQuadFaces(originalQuaternions[getGridIdx(i, j, 0)], originalQuaternions[getGridIdx(i + 1, j, 0)], originalQuaternions[getGridIdx(i, j + 1, 0)], originalQuaternions[getGridIdx(i + 1, j + 1, 0)], minWInputForColor, minOutputW, maxOutputW);
+                        addQuadFaces(originalQuaternions[getGridIdx(i, j, numPoints - 1)], originalQuaternions[getGridIdx(i + 1, j, numPoints - 1)], originalQuaternions[getGridIdx(i, j + 1, numPoints - 1)], originalQuaternions[getGridIdx(i + 1, j + 1, numPoints - 1)], minWInputForColor, minOutputW, maxOutputW);
+                    }
+                }
+
+                for (let i = 0; i < numPoints - 1; i++) {
+                    for (let k = 0; k < numPoints - 1; k++) {
+                        addQuadFaces(originalQuaternions[getGridIdx(i, 0, k)], originalQuaternions[getGridIdx(i + 1, 0, k)], originalQuaternions[getGridIdx(i, 0, k + 1)], originalQuaternions[getGridIdx(i + 1, 0, k + 1)], minWInputForColor, minOutputW, maxOutputW);
+                        addQuadFaces(originalQuaternions[getGridIdx(i, numPoints - 1, k)], originalQuaternions[getGridIdx(i + 1, numPoints - 1, k)], originalQuaternions[getGridIdx(i, numPoints - 1, k + 1)], originalQuaternions[getGridIdx(i + 1, numPoints - 1, k + 1)], minWInputForColor, minOutputW, maxOutputW);
+                    }
+                }
+
+                for (let j = 0; j < numPoints - 1; j++) {
+                    for (let k = 0; k < numPoints - 1; k++) {
+                        addQuadFaces(originalQuaternions[getGridIdx(0, j, k)], originalQuaternions[getGridIdx(0, j + 1, k)], originalQuaternions[getGridIdx(0, j, k + 1)], originalQuaternions[getGridIdx(0, j + 1, k + 1)], minWInputForColor, minOutputW, maxOutputW);
+                        addQuadFaces(originalQuaternions[getGridIdx(numPoints - 1, j, k)], originalQuaternions[getGridIdx(numPoints - 1, j + 1, k)], originalQuaternions[getGridIdx(numPoints - 1, j, k + 1)], originalQuaternions[getGridIdx(numPoints - 1, j + 1, k + 1)], minWInputForColor, minOutputW, maxOutputW);
+                    }
+                }
+
             } else if (startingArrangement === 'plane2D') {
-                const fixedZ = 0;
                 for (let i = 0; i < numPoints; i++) {
-                    const x_in = -1 + i * step;
                     for (let j = 0; j < numPoints; j++) {
-                        const y_in = -1 + j * step;
-                        const q_current_in = new Quaternion(wFixed, x_in, y_in, fixedZ);
+                        const currentIdx = i * numPoints + j;
 
                         if (i < numPoints - 1) {
-                            const q_nextX_in = new Quaternion(wFixed, x_in + step, y_in, fixedZ);
-                            addLineSegment(q_current_in, q_nextX_in);
+                            const nextXIdx = (i + 1) * numPoints + j;
+                            addLineSegment(currentIdx, nextXIdx);
                         }
                         if (j < numPoints - 1) {
-                            const q_nextY_in = new Quaternion(wFixed, x_in, y_in + step, fixedZ);
-                            addLineSegment(q_current_in, q_nextY_in);
+                            const nextYIdx = i * numPoints + (j + 1);
+                            addLineSegment(currentIdx, nextYIdx);
+                        }
+
+                        // Always generate faces for plane2D, display handled by updateDisplay()
+                        if (i < numPoints - 1 && j < numPoints - 1) {
+                            const p1_idx = currentIdx;
+                            const p2_idx = i * numPoints + (j + 1);
+                            const p3_idx = (i + 1) * numPoints + j;
+                            const p4_idx = (i + 1) * numPoints + (j + 1);
+                            addQuadFaces(originalQuaternions[p1_idx], originalQuaternions[p2_idx], originalQuaternions[p3_idx], originalQuaternions[p4_idx], minWInputForColor, minOutputW, maxOutputW);
                         }
                     }
                 }
             } else if (startingArrangement === 'sphere') {
+                const latSegments = density;
+                const lonSegments = density * 2;
+
+                for (let lat = 0; lat <= latSegments; lat++) {
+                    for (let lon = 0; lon <= lonSegments; lon++) {
+                        const currentIdx = lat * (lonSegments + 1) + lon;
+
+                        if (lon < lonSegments) {
+                            const nextLonIdx = lat * (lonSegments + 1) + lon + 1;
+                            addLineSegment(currentIdx, nextLonIdx);
+                        }
+                        if (lat < latSegments) {
+                            const nextLatIdx = (lat + 1) * (lonSegments + 1) + lon;
+                            addLineSegment(currentIdx, nextLatIdx);
+                        }
+                        // Faces are explicitly NOT generated for sphere as per user request.
+                    }
+                }
             } else if (startingArrangement === 'cubeEdges') {
                 const side = 2.0;
                 const halfSide = side / 2;
                 const pointsPerEdge = density;
-                const edgeStep = side / (pointsPerEdge - 1);
-                const tolerance = 0.001;
 
                 const vertices = [];
                 for (let i = -1; i <= 1; i += 2) {
@@ -1152,6 +1350,19 @@
                     [0, 4], [1, 5], [3, 7], [2, 6]
                 ];
 
+                const getQuaternionIndex = (w, x, y, z, tolerance = 0.0001) => {
+                    for (let i = 0; i < originalQuaternions.length; i++) {
+                        const q = originalQuaternions[i];
+                        if (Math.abs(q.w - w) < tolerance &&
+                            Math.abs(q.x - x) < tolerance &&
+                            Math.abs(q.y - y) < tolerance &&
+                            Math.abs(q.z - z) < tolerance) {
+                            return i;
+                        }
+                    }
+                    return -1;
+                };
+
                 edges.forEach(edge => {
                     const v1 = vertices[edge[0]];
                     const v2 = vertices[edge[1]];
@@ -1163,131 +1374,124 @@
                         const q1_x = v1.x * (1 - t1) + v2.x * t1;
                         const q1_y = v1.y * (1 - t1) + v2.y * t1;
                         const q1_z = v1.z * (1 - t1) + v2.z * t1;
-                        const q1 = new Quaternion(wFixed, q1_x, q1_y, q1_z);
+                        const q1_w = wFixed;
 
                         const q2_x = v1.x * (1 - t2) + v2.x * t2;
                         const q2_y = v1.y * (1 - t2) + v2.y * t2;
                         const q2_z = v1.z * (1 - t2) + v2.z * t2;
-                        const q2 = new Quaternion(wFixed, q2_x, q2_y, q2_z);
+                        const q2_w = wFixed;
 
-                        addLineSegment(q1, q2);
+                        const idx1 = getQuaternionIndex(q1_w, q1_x, q1_y, q1_z);
+                        const idx2 = getQuaternionIndex(q2_w, q2_x, q2_y, q2_z);
+
+                        if (idx1 !== -1 && idx2 !== -1) {
+                            addLineSegment(idx1, idx2);
+                        }
                     }
                 });
             } else if (startingArrangement === 'cubeFaces') {
-                const side = 2.0;
-                const halfSide = side / 2;
                 const pointsPerFaceDim = numPoints;
-                const faceStep = side / (pointsPerFaceDim - 1);
-
-                const generateFaceLines = (fixedAxis, fixedVal) => {
+                const generateFaceLinesAndQuads = (base_idx_offset) => {
                     for (let i = 0; i < pointsPerFaceDim; i++) {
-                        const coord1_val = -halfSide + i * faceStep;
                         for (let j = 0; j < pointsPerFaceDim; j++) {
-                            const coord2_val = -halfSide + j * faceStep;
-
-                            let q_current;
-                            if (fixedAxis === 'x') q_current = new Quaternion(wFixed, fixedVal, coord1_val, coord2_val);
-                            else if (fixedAxis === 'y') q_current = new Quaternion(wFixed, coord1_val, fixedVal, coord2_val);
-                            else q_current = new Quaternion(wFixed, coord1_val, coord2_val, fixedVal);
+                            const currentIdx = base_idx_offset + i * pointsPerFaceDim + j;
 
                             if (i < pointsPerFaceDim - 1) {
-                                let q_next;
-                                const next_coord1_val = -halfSide + (i + 1) * faceStep;
-                                if (fixedAxis === 'x') q_next = new Quaternion(wFixed, fixedVal, next_coord1_val, coord2_val);
-                                else if (fixedAxis === 'y') q_next = new Quaternion(wFixed, next_coord1_val, fixedVal, coord2_val);
-                                else q_next = new Quaternion(wFixed, next_coord1_val, coord2_val, fixedVal);
-                                addLineSegment(q_current, q_next);
+                                const nextIdx = base_idx_offset + (i + 1) * pointsPerFaceDim + j;
+                                addLineSegment(currentIdx, nextIdx);
                             }
                             if (j < pointsPerFaceDim - 1) {
-                                let q_next;
-                                const next_coord2_val = -halfSide + (j + 1) * faceStep;
-                                if (fixedAxis === 'x') q_next = new Quaternion(wFixed, fixedVal, coord1_val, next_coord2_val);
-                                else if (fixedAxis === 'y') q_next = new Quaternion(wFixed, coord1_val, fixedVal, next_coord2_val);
-                                else q_next = new Quaternion(wFixed, coord1_val, next_coord2_val, fixedVal);
-                                addLineSegment(q_current, q_next);
+                                const nextIdx = base_idx_offset + i * pointsPerFaceDim + (j + 1);
+                                addLineSegment(currentIdx, nextIdx);
+                            }
+
+                            // Always generate faces for cubeFaces, display handled by updateDisplay()
+                            if (i < pointsPerFaceDim - 1 && j < pointsPerFaceDim - 1) {
+                                const p1_idx = currentIdx;
+                                const p2_idx = base_idx_offset + i * pointsPerFaceDim + (j + 1);
+                                const p3_idx = base_idx_offset + (i + 1) * pointsPerFaceDim + j;
+                                const p4_idx = base_idx_offset + (i + 1) * pointsPerFaceDim + (j + 1);
+                                addQuadFaces(originalQuaternions[p1_idx], originalQuaternions[p2_idx], originalQuaternions[p3_idx], originalQuaternions[p4_idx], minWInputForColor, minOutputW, maxOutputW);
                             }
                         }
                     }
                 };
 
-                generateFaceLines('z', halfSide);
-                generateFaceLines('z', -halfSide);
-                generateFaceLines('y', halfSide);
-                generateFaceLines('y', -halfSide);
-                generateFaceLines('x', halfSide);
-                generateFaceLines('x', -halfSide);
+                let currentOffset = 0;
+                generateFaceLinesAndQuads(currentOffset);
+                currentOffset += pointsPerFaceDim * pointsPerFaceDim;
+                generateFaceLinesAndQuads(currentOffset);
+                currentOffset += pointsPerFaceDim * pointsPerFaceDim;
+                generateFaceLinesAndQuads(currentOffset);
+                currentOffset += pointsPerFaceDim * pointsPerFaceDim;
+                generateFaceLinesAndQuads(currentOffset);
+                currentOffset += pointsPerFaceDim * pointsPerFaceDim;
+                generateFaceLinesAndQuads(currentOffset);
+                currentOffset += pointsPerFaceDim * pointsPerFaceDim;
+                generateFaceLinesAndQuads(currentOffset);
 
             } else if (startingArrangement === 'grid4D') {
                 const grid4DPoints = density;
-                const step4D = 2.0 / (grid4DPoints - 1);
 
                 for (let i = 0; i < grid4DPoints; i++) {
-                    const w_in = -1 + i * step4D;
                     for (let j = 0; j < grid4DPoints; j++) {
-                        const x_in = -1 + j * step4D;
                         for (let l = 0; l < grid4DPoints; l++) {
-                            const y_in = -1 + l * step4D;
                             for (let m = 0; m < grid4DPoints; m++) {
-                                const z_in = -1 + m * step4D;
-                                const q_current_in = new Quaternion(w_in, x_in, y_in, z_in);
+                                const currentIdx = i * (grid4DPoints**3) + j * (grid4DPoints**2) + l * grid4DPoints + m;
 
                                 if (i < grid4DPoints - 1) {
-                                    const q_nextW_in = new Quaternion(w_in + step4D, x_in, y_in, z_in);
-                                    addLineSegment(q_current_in, q_nextW_in);
+                                    const nextWIdx = (i + 1) * (grid4DPoints**3) + j * (grid4DPoints**2) + l * grid4DPoints + m;
+                                    addLineSegment(currentIdx, nextWIdx);
                                 }
                                 if (j < grid4DPoints - 1) {
-                                    const q_nextX_in = new Quaternion(w_in, x_in + step4D, y_in, z_in);
-                                    addLineSegment(q_current_in, q_nextX_in);
+                                    const nextXIdx = i * (grid4DPoints**3) + (j + 1) * (grid4DPoints**2) + l * grid4DPoints + m;
+                                    addLineSegment(currentIdx, nextXIdx);
                                 }
                                 if (l < grid4DPoints - 1) {
-                                    const q_nextY_in = new Quaternion(w_in, x_in, y_in + step4D, z_in);
-                                    addLineSegment(q_current_in, q_nextY_in);
+                                    const nextYIdx = i * (grid4DPoints**3) + j * (grid4DPoints**2) + (l + 1) * grid4DPoints + m;
+                                    addLineSegment(currentIdx, nextYIdx);
                                 }
                                 if (m < grid4DPoints - 1) {
-                                    const q_nextZ_in = new Quaternion(w_in, x_in, y_in, z_in + step4D);
-                                    addLineSegment(q_current_in, q_nextZ_in);
+                                    const nextZIdx = i * (grid4DPoints**3) + j * (grid4DPoints**2) + l * grid4DPoints + (m + 1);
+                                    addLineSegment(currentIdx, nextZIdx);
                                 }
+                                // Faces are explicitly NOT generated for 4D grid as per user request.
                             }
                         }
                     }
                 }
-            } else if (startingArrangement === 'torus') { // NEW TORUS LINE GENERATION
-                const majorRadius = 1.0;
-                const minorRadius = 0.4;
-                const numSegmentsU = density;
+            } else if (startingArrangement === 'torus') {
+                const numSegmentsU = density * 2;
                 const numSegmentsV = density;
 
-                for (let i = 0; i < numSegmentsU; i++) {
-                    for (let j = 0; j < numSegmentsV; j++) {
-                        const u = (i / numSegmentsU) * 2 * Math.PI;
-                        const v = (j / numSegmentsV) * 2 * Math.PI;
+                for (let i = 0; i <= numSegmentsU; i++) {
+                    for (let j = 0; j <= numSegmentsV; j++) {
+                        const currentIdx = i * (numSegmentsV + 1) + j;
 
-                        const x_curr = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
-                        const y_curr = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
-                        const z_curr = minorRadius * Math.sin(v);
-                        const q_current_in = new Quaternion(wFixed, x_curr, y_curr, z_curr);
+                        if (i < numSegmentsU) {
+                            const nextUIdx = (i + 1) * (numSegmentsV + 1) + j;
+                            addLineSegment(currentIdx, nextUIdx);
+                        }
+                        if (j < numSegmentsV) {
+                            const nextVIdx = i * (numSegmentsV + 1) + (j + 1);
+                            addLineSegment(currentIdx, nextVIdx);
+                        }
 
-                        // Connect along U (major circle)
-                        const u_next = ((i + 1) % numSegmentsU / numSegmentsU) * 2 * Math.PI;
-                        const x_next_u = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u_next);
-                        const y_next_u = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u_next);
-                        const z_next_u = minorRadius * Math.sin(v);
-                        const q_next_u_in = new Quaternion(wFixed, x_next_u, y_next_u, z_next_u);
-                        addLineSegment(q_current_in, q_next_u_in);
-
-                        // Connect along V (minor circle)
-                        const v_next = ((j + 1) % numSegmentsV / numSegmentsV) * 2 * Math.PI;
-                        const x_next_v = (majorRadius + minorRadius * Math.cos(v_next)) * Math.cos(u);
-                        const y_next_v = (majorRadius + minorRadius * Math.cos(v_next)) * Math.sin(u);
-                        const z_next_v = minorRadius * Math.sin(v_next);
-                        const q_next_v_in = new Quaternion(wFixed, x_next_v, y_next_v, z_next_v);
-                        addLineSegment(q_current_in, q_next_v_in);
+                        // Always generate faces for torus, display handled by updateDisplay()
+                        if (i < numSegmentsU && j < numSegmentsV) {
+                            const p1_idx = currentIdx;
+                            const p2_idx = i * (numSegmentsV + 1) + (j + 1);
+                            const p3_idx = (i + 1) * (numSegmentsV + 1) + j;
+                            const p4_idx = (i + 1) * (numSegmentsV + 1) + (j + 1);
+                            addQuadFaces(originalQuaternions[p1_idx], originalQuaternions[p2_idx], originalQuaternions[p3_idx], originalQuaternions[p4_idx], minWInputForColor, minOutputW, maxOutputW);
+                        }
                     }
                 }
             }
         }
 
         function updateDisplay() {
+            // Remove existing meshes from the scene
             if (pointsMesh) {
                 scene.remove(pointsMesh);
                 pointsMesh.geometry.dispose();
@@ -1300,12 +1504,24 @@
                 linesMesh.material.dispose();
                 linesMesh = null;
             }
+            if (facesMesh) {
+                scene.remove(facesMesh);
+                facesMesh.geometry.dispose();
+                facesMesh.material.dispose();
+                facesMesh = null;
+            }
+
 
             const currentPointPositions = showMappedView ? mappedPointPositions : originalPointPositions;
             const currentPointColors = showMappedView ? mappedPointColors : originalPointColors;
             const currentLinePositions = showMappedView ? mappedLinePositions : originalLinePositions;
             const currentLineColors = showMappedView ? mappedLineColors : originalLineColors;
             const currentLineIndices = showMappedView ? mappedLineIndices : originalLineIndices;
+
+            const currentFacePositions = showMappedView ? mappedFacePositions : originalFacePositions;
+            const currentFaceColors = showMappedView ? mappedFaceColors : originalFaceColors;
+            const currentFaceIndices = showMappedView ? mappedFaceIndices : originalFaceIndices;
+
 
             if (currentPointPositions.length === 0) {
                 coordinatesDisplayDiv.style.display = 'none';
@@ -1348,6 +1564,20 @@
                 const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 1 });
                 linesMesh = new THREE.LineSegments(lineGeometry, lineMaterial);
                 scene.add(linesMesh);
+            } else if (lineDisplayMode === 'faces' && currentFaceIndices.length > 0) {
+                const faceGeometry = new THREE.BufferGeometry();
+                faceGeometry.setAttribute('position', new THREE.Float32BufferAttribute(currentFacePositions, 3));
+                faceGeometry.setAttribute('color', new THREE.Float32BufferAttribute(currentFaceColors, 3));
+                faceGeometry.setIndex(new THREE.Uint32BufferAttribute(currentFaceIndices, 1));
+
+                const faceMaterial = new THREE.MeshBasicMaterial({
+                    vertexColors: true,
+                    side: THREE.DoubleSide,
+                    transparent: false,
+                    opacity: 1.0
+                });
+                facesMesh = new THREE.Mesh(faceGeometry, faceMaterial);
+                scene.add(facesMesh);
             }
         }
 
