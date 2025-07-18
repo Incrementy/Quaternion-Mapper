@@ -167,8 +167,8 @@
             padding: 5px 10px;
             border-radius: 5px;
             font-size: 0.8em;
-            pointer-events: none; /* Allows mouse events to pass through to the canvas */
-            display: none; /* Initially hidden */
+            pointer-events: none;
+            display: none;
             z-index: 10;
         }
     </style>
@@ -274,12 +274,10 @@
         let tokens = [];
         let q_input_for_parser;
 
-        // Global arrays for quaternions (populated first, then used for points, lines, faces)
         let originalQuaternions = [];
         let mappedQuaternions = [];
 
 
-        // Variables for mouse interaction
         let intersected = null;
         let coordinatesDisplayDiv;
 
@@ -624,7 +622,7 @@
         function evaluateQuaternionExpression(expression, q_in) {
             const errorMessageDiv = document.getElementById('errorMessage');
             if (q_in === null) {
-                errorMessageDiv.textContent = ''; // Clear error message for new input
+                errorMessageDiv.textContent = '';
             }
 
             try {
@@ -634,20 +632,16 @@
                 }
                 const result = parse(expression, q_in);
                 
-                // If the result is a Quaternion but contains NaN components, propagate it.
-                // Do NOT set errorMessageDiv here, as it's a mathematical result, not a syntax error.
                 if (result instanceof Quaternion && (isNaN(result.w) || isNaN(result.x) || isNaN(result.y) || isNaN(result.z))) {
                     return new Quaternion(NaN, NaN, NaN, NaN);
                 }
 
-                // If parsing succeeded and resulted in a valid Quaternion, return it.
                 return result;
             } catch (error) {
-                // Catch actual parsing/syntax errors (e.g., "q+" or "unknown_func()")
-                if (q_in === null) { // Only show syntax errors for the main input field
+                if (q_in === null) {
                     errorMessageDiv.textContent = `Error: ${error.message}`;
                 }
-                return new Quaternion(NaN, NaN, NaN, NaN); // Return NaN quaternion on parsing errors
+                return new Quaternion(NaN, NaN, NaN, NaN);
             }
         }
 
@@ -735,10 +729,9 @@
             coordinatesDisplayDiv = document.getElementById('coordinatesDisplayDiv');
             container.addEventListener('mousemove', onMouseMove, false);
 
-            createVisualization(); // Initial creation of all data
-            updateDisplay(); // Initial display based on current settings
+            createVisualization();
+            updateDisplay();
 
-            // Set initial button text correctly as it starts in Mapped View
             document.getElementById('toggleViewBtn').textContent = "Show Original View";
 
             window.addEventListener('resize', onWindowResize, false);
@@ -747,27 +740,26 @@
                 wFixed = parseFloat(event.target.value);
                 document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
                 if (startingArrangement !== 'grid4D') {
-                    createVisualization(); // Regenerate data
+                    createVisualization();
                 }
-                updateDisplay(); // Update display
+                updateDisplay();
             });
 
             document.getElementById('density').addEventListener('input', (event) => {
                 density = parseInt(event.target.value);
                 document.getElementById('densityDisplay').textContent = density;
-                createVisualization(); // Regenerate data
-                updateDisplay(); // Update display
+                createVisualization();
+                updateDisplay();
             });
 
             document.getElementById('pointSizeFactor').addEventListener('input', (event) => {
                 pointSizeFactor = parseFloat(event.target.value);
                 document.getElementById('pointSizeFactorDisplay').textContent = pointSizeFactor.toFixed(2);
-                updateDisplay(); // Update display (no data regeneration needed)
+                updateDisplay();
             });
 
             document.getElementById('functionInput').addEventListener('input', (event) => {
                 currentFunction = event.target.value;
-                // Always attempt to create and update, let createVisualization handle NaNs
                 createVisualization();
                 updateDisplay();
             });
@@ -775,13 +767,12 @@
             document.getElementById('toggleViewBtn').addEventListener('click', () => {
                 showMappedView = !showMappedView;
                 document.getElementById('toggleViewBtn').textContent = showMappedView ? "Show Original View" : "Show Mapped View";
-                updateDisplay(); // Update display (no data regeneration needed)
+                updateDisplay();
             });
 
             lineDisplayModeSelect.addEventListener('change', (event) => {
                 lineDisplayMode = event.target.value;
-                // No need to call createVisualization here, as all data is already generated
-                updateDisplay(); // Just update display
+                updateDisplay();
             });
 
             startingArrangementSelect.addEventListener('change', (event) => {
@@ -794,8 +785,8 @@
                     wValueSlider.style.opacity = '1.0';
                 }
 
-                createVisualization(); // Regenerate data
-                updateDisplay(); // Update display
+                createVisualization();
+                updateDisplay();
             });
         }
 
@@ -901,7 +892,6 @@
 
 
         function createVisualization() {
-            // Clear all data arrays before regenerating
             originalPointPositions = [];
             originalPointColors = [];
             originalLinePositions = [];
@@ -937,7 +927,6 @@
             let minOutputW = Infinity;
             let maxOutputW = -Infinity;
 
-            // Generate all original quaternions based on starting arrangement
             if (startingArrangement === 'grid3D') {
                 for (let i = 0; i < numPoints; i++) {
                     const x_in = -1 + i * step;
@@ -1078,7 +1067,6 @@
                 }
             }
 
-            // Evaluate all original quaternions to get mapped quaternions
             for(const q_in of originalQuaternions) {
                 const q_out = evaluateQuaternionExpression(currentFunction, q_in);
                 mappedQuaternions.push(q_out);
@@ -1094,7 +1082,6 @@
                 maxOutputW = 5;
             }
 
-            // Populate point positions and colors from the global quaternion arrays
             for (let i = 0; i < originalQuaternions.length; i++) {
                 const q_in = originalQuaternions[i];
                 const q_out = mappedQuaternions[i];
@@ -1114,12 +1101,10 @@
             const numLineSubdivisions = Math.max(10, Math.floor(20 / density));
             let currentLinePointIdx = 0;
 
-            // Helper to add a line segment using originalQuaternions indices
             const addLineSegment = (idx1, idx2) => {
                 const q1_in = originalQuaternions[idx1];
                 const q2_in = originalQuaternions[idx2];
 
-                // Skip line if either endpoint's mapped quaternion is invalid
                 if (isNaN(mappedQuaternions[idx1].w) || isNaN(mappedQuaternions[idx2].w)) {
                     return;
                 }
@@ -1164,7 +1149,6 @@
                 }
             };
 
-            // Helper to add a quad (two triangles) to face data, with subdivision
             const addQuadFaces = (q00_in_corner, q10_in_corner, q01_in_corner, q11_in_corner, minWInputForColor, minOutputW, maxOutputW) => {
                 const faceSubdivisions = 5;
 
@@ -1243,7 +1227,6 @@
             };
 
 
-            // Generate lines and faces for each arrangement type
             if (startingArrangement === 'grid3D') {
                 const getGridIdx = (i, j, k) => i * numPoints * numPoints + j * numPoints + k;
 
@@ -1265,7 +1248,6 @@
                     }
                 }
 
-                // Always generate faces for grid3D, display handled by updateDisplay()
                 for (let i = 0; i < numPoints - 1; i++) {
                     for (let j = 0; j < numPoints - 1; j++) {
                         addQuadFaces(originalQuaternions[getGridIdx(i, j, 0)], originalQuaternions[getGridIdx(i + 1, j, 0)], originalQuaternions[getGridIdx(i, j + 1, 0)], originalQuaternions[getGridIdx(i + 1, j + 1, 0)], minWInputForColor, minOutputW, maxOutputW);
@@ -1301,7 +1283,6 @@
                             addLineSegment(currentIdx, nextYIdx);
                         }
 
-                        // Always generate faces for plane2D, display handled by updateDisplay()
                         if (i < numPoints - 1 && j < numPoints - 1) {
                             const p1_idx = currentIdx;
                             const p2_idx = i * numPoints + (j + 1);
@@ -1327,7 +1308,6 @@
                             const nextLatIdx = (lat + 1) * (lonSegments + 1) + lon;
                             addLineSegment(currentIdx, nextLatIdx);
                         }
-                        // Faces are explicitly NOT generated for sphere as per user request.
                     }
                 }
             } else if (startingArrangement === 'cubeEdges') {
@@ -1405,7 +1385,6 @@
                                 addLineSegment(currentIdx, nextIdx);
                             }
 
-                            // Always generate faces for cubeFaces, display handled by updateDisplay()
                             if (i < pointsPerFaceDim - 1 && j < pointsPerFaceDim - 1) {
                                 const p1_idx = currentIdx;
                                 const p2_idx = base_idx_offset + i * pointsPerFaceDim + (j + 1);
@@ -1455,7 +1434,6 @@
                                     const nextZIdx = i * (grid4DPoints**3) + j * (grid4DPoints**2) + l * grid4DPoints + (m + 1);
                                     addLineSegment(currentIdx, nextZIdx);
                                 }
-                                // Faces are explicitly NOT generated for 4D grid as per user request.
                             }
                         }
                     }
@@ -1477,7 +1455,6 @@
                             addLineSegment(currentIdx, nextVIdx);
                         }
 
-                        // Always generate faces for torus, display handled by updateDisplay()
                         if (i < numSegmentsU && j < numSegmentsV) {
                             const p1_idx = currentIdx;
                             const p2_idx = i * (numSegmentsV + 1) + (j + 1);
@@ -1491,7 +1468,6 @@
         }
 
         function updateDisplay() {
-            // Remove existing meshes from the scene
             if (pointsMesh) {
                 scene.remove(pointsMesh);
                 pointsMesh.geometry.dispose();
