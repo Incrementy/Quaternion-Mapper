@@ -104,10 +104,37 @@
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
+        .value-display-container {
+            position: relative;
+            display: inline-block; /* Keep inline-block for natural flow with label */
+            vertical-align: middle; /* Align with label text */
+            min-width: 60px; /* Ensure enough space for numbers */
+            height: 1.2em; /* Ensure height matches line height for alignment */
+            margin-left: 0.5rem; /* Add margin to separate from label text */
+        }
+        .value-display, .value-input {
+            position: absolute; /* Position both exactly on top of each other */
+            left: 0;
+            top: 0;
+            width: 100%; /* Take full width of container */
+            height: 100%; /* Take full height of container */
+            padding: 0.1rem 0.2rem; /* Match padding for visual consistency */
+            box-sizing: border-box; /* Include padding and border in width/height */
+            text-align: center; /* Center the text in the input */
+            font-size: 0.85rem; /* Match font size */
+            color: #ddd; /* Match text color */
+        }
         .value-display {
             font-weight: normal;
-            margin-left: 0.5rem;
-            color: #ddd;
+            cursor: pointer;
+            display: inline-block; /* Initially visible */
+            line-height: 1.2em; /* Match line height for vertical alignment */
+        }
+        .value-input {
+            border-radius: 0.3rem;
+            border: 1px solid #555;
+            background-color: #333;
+            display: none; /* Hidden by default */
         }
         .input-group input[type="text"],
         .input-group select {
@@ -187,6 +214,112 @@
             font-size: 0.85rem;
             width: 100%; /* Make buttons take full available width in their container */
         }
+
+        /* Info Button and Modal */
+        #infoButton {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: rgba(68, 68, 68, 0.8);
+            color: white;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 20;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        #infoButton:hover {
+            background-color: rgba(102, 102, 102, 0.9);
+            transform: translateY(-1px);
+        }
+        #infoButton:active {
+            transform: translateY(0);
+        }
+
+        #infoModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.3s ease-in-out;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #infoModal.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .info-content {
+            background-color: #1a1a1a;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            color: #e2e8f0;
+            position: relative;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease-in-out;
+        }
+        #infoModal.show .info-content {
+            transform: translateY(0);
+        }
+        .info-content h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+        .info-content h3 {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            color: #ccc;
+        }
+        .info-content p, .info-content ul {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+        .info-content ul {
+            list-style-type: disc;
+            margin-left: 1.25rem;
+        }
+        .info-content li {
+            margin-bottom: 0.25rem;
+        }
+        #closeInfoModal {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #e2e8f0;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        #closeInfoModal:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -227,17 +360,32 @@
 
         <div class="right-panel">
             <div class="slider-group">
-                <label for="wValue">Input w Value: <span id="wValueDisplay" class="value-display">0.5</span></label>
+                <label for="wValue">Input w Value:
+                    <span class="value-display-container">
+                        <span id="wValueDisplay" class="value-display">0.5</span>
+                        <input type="text" id="wValueInput" class="value-input">
+                    </span>
+                </label>
                 <input type="range" id="wValue" min="-2" max="2" step="0.01" value="0.5">
             </div>
 
             <div class="slider-group">
-                <label for="density">Point Density: <span id="densityDisplay" class="value-display">10</span></label>
+                <label for="density">Point Density:
+                    <span class="value-display-container">
+                        <span id="densityDisplay" class="value-display">10</span>
+                        <input type="text" id="densityInput" class="value-input">
+                    </span>
+                </label>
                 <input type="range" id="density" min="2" max="30" step="1" value="10">
             </div>
 
             <div class="slider-group">
-                <label for="pointSizeFactor">Point Size Factor: <span id="pointSizeFactorDisplay" class="value-display">1.00</span></label>
+                <label for="pointSizeFactor">Point Size Factor:
+                    <span class="value-display-container">
+                        <span id="pointSizeFactorDisplay" class="value-display">1.00</span>
+                        <input type="text" id="pointSizeFactorInput" class="value-input">
+                    </span>
+                </label>
                 <input type="range" id="pointSizeFactor" min="0.1" max="5.0" step="0.01" value="1.0">
             </div>
 
@@ -255,6 +403,41 @@
                 </div>
                 <button id="toggleViewBtn" class="button-group-single">Show Mapped View</button>
             </div>
+        </div>
+    </div>
+
+    <button id="infoButton">?</button>
+
+    <div id="infoModal">
+        <div class="info-content">
+            <button id="closeInfoModal">×</button>
+            <h2>About This Project: Quaternion Mapping Visualization</h2>
+            <p>
+                This interactive tool allows you to visualize how a set of input quaternions (4D numbers with a real part 'w' and imaginary parts 'x', 'y', 'z') are transformed by a user-defined function. You can choose different initial arrangements of points in 3D space (representing the 'x', 'y', 'z' components of the input quaternions, with 'w' being a fixed value or varying in 4D grid).
+            </p>
+            <p>
+                The color of each point represents its 'w' component (real part). Blue indicates lower 'w' values, while red indicates higher 'w' values. This color mapping applies to both the original and mapped views, allowing you to observe how the 'w' component changes after the transformation.
+            </p>
+            <h3>What it's doing:</h3>
+            <p>
+                The application takes a set of input quaternions based on your chosen arrangement (e.g., a 3D grid, a 2D plane, a sphere, etc.). For each input quaternion, it applies the function you define in the "Function" input field. The result is a new, "mapped" quaternion. The visualization then displays either the original set of points or the mapped set of points in 3D space, with their colors indicating their 'w' component.
+            </p>
+            <p>
+                This helps in understanding the geometric interpretation of various quaternion operations and how they deform or transform space.
+            </p>
+            <h3>Complex Example Functions:</h3>
+            <ul>
+                <li><code>q * i * q</code>: A non-commutative product that can lead to interesting rotations and scaling.</li>
+                <li><code>(q + i) / (q - j)</code>: Division of quaternions, demonstrating more complex transformations.</li>
+                <li><code>norm(q) * k</code>: Scales the vector part of the quaternion by its norm, then aligns it with the 'k' axis.</li>
+                <li><code>re(q) + im(q) * 2</code>: Separates the real and imaginary parts, then scales the imaginary part.</li>
+                <li><code>conj(q) * q</code>: This will always result in a real quaternion equal to the squared norm of q (q.w^2 + q.x^2 + q.y^2 + q.z^2).</li>
+                <li><code>inv(q) * q</code>: This will always result in the identity quaternion (1, 0, 0, 0).</li>
+                <li><code>(q^3 + 2*q) / (q + 1)</code>: A more elaborate polynomial-like expression.</li>
+            </ul>
+            <p>
+                Experiment with different functions and starting arrangements to explore the rich behavior of quaternion algebra!
+            </p>
         </div>
     </div>
 
@@ -714,8 +897,9 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
-            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.z = 3.33;
+            // Increased far clipping plane for better visibility when zoomed out
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 50000);
+            camera.position.z = 3.33; // Reverted initial camera position
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
@@ -758,9 +942,86 @@
 
             window.addEventListener('resize', onWindowResize, false);
 
+            // Helper function to set up editable slider value
+            function setupEditableSlider(sliderId, displayId, inputId, formatFn, updateVarFn) {
+                const slider = document.getElementById(sliderId);
+                const display = document.getElementById(displayId);
+                const input = document.getElementById(inputId);
+
+                display.addEventListener('click', () => {
+                    display.style.display = 'none';
+                    input.style.display = 'inline-block';
+                    input.value = updateVarFn(null, true); // Get current internal value
+                    input.focus();
+                });
+
+                // Function to handle value update and UI refresh
+                const applyInputValue = () => {
+                    let newValue = parseFloat(input.value);
+                    if (!isNaN(newValue)) {
+                        updateVarFn(newValue); // Update the global variable with the exact value
+                        display.textContent = formatFn(newValue); // Update display with exact value
+
+                        // Update slider's visual position, clamped to its range
+                        const sliderMin = parseFloat(slider.min);
+                        const sliderMax = parseFloat(slider.max);
+                        slider.value = Math.max(sliderMin, Math.min(sliderMax, newValue));
+                        
+                        // Re-create and update visualization based on the new (unclamped) global variable
+                        createVisualization();
+                        updateDisplay();
+
+                    } else {
+                        // If input is invalid, revert display to current internal value
+                        display.textContent = formatFn(updateVarFn(null, true));
+                    }
+                    input.style.display = 'none';
+                    display.style.display = 'inline-block';
+                };
+
+                input.addEventListener('blur', applyInputValue); // Apply on blur
+
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault(); // Prevent default form submission or newline
+                        input.blur(); // Trigger blur to apply value and hide
+                    }
+                });
+
+                // Update display when slider moves (this will always be within slider's range)
+                slider.addEventListener('input', (event) => {
+                    const sliderVal = parseFloat(event.target.value);
+                    updateVarFn(sliderVal); // Update internal variable
+                    display.textContent = formatFn(sliderVal); // Update display
+                    createVisualization(); // Re-create visualization
+                    updateDisplay(); // Update display
+                });
+
+                // Initial display update
+                display.textContent = formatFn(updateVarFn(null, true));
+            }
+
+            // Define update functions for each variable
+            const updateWFixed = (val, get = false) => {
+                if (get) return wFixed;
+                wFixed = val;
+            };
+            const updateDensity = (val, get = false) => {
+                if (get) return density;
+                density = parseInt(val); // Ensure integer for density
+            };
+            const updatePointSizeFactor = (val, get = false) => {
+                if (get) return pointSizeFactor;
+                pointSizeFactor = val;
+            };
+
+            setupEditableSlider('wValue', 'wValueDisplay', 'wValueInput', (val) => val.toFixed(2), updateWFixed);
+            setupEditableSlider('density', 'densityDisplay', 'densityInput', (val) => val.toString(), updateDensity);
+            setupEditableSlider('pointSizeFactor', 'pointSizeFactorDisplay', 'pointSizeFactorInput', (val) => val.toFixed(2), updatePointSizeFactor);
+
+
             document.getElementById('wValue').addEventListener('input', (event) => {
                 wFixed = parseFloat(event.target.value);
-                document.getElementById('wValueDisplay').textContent = wFixed.toFixed(2);
                 if (startingArrangement !== 'grid4D') {
                     createVisualization();
                 }
@@ -769,14 +1030,12 @@
 
             document.getElementById('density').addEventListener('input', (event) => {
                 density = parseInt(event.target.value);
-                document.getElementById('densityDisplay').textContent = density;
                 createVisualization();
                 updateDisplay();
             });
 
             document.getElementById('pointSizeFactor').addEventListener('input', (event) => {
                 pointSizeFactor = parseFloat(event.target.value);
-                document.getElementById('pointSizeFactorDisplay').textContent = pointSizeFactor.toFixed(2);
                 updateDisplay();
             });
 
@@ -825,10 +1084,30 @@
             });
 
             document.getElementById('resetCameraBtn').addEventListener('click', () => {
-                camera.position.set(0, 0, 3.33);
+                camera.position.set(0, 0, 3.33); // Reset to original initial position
                 camera.lookAt(0, 0, 0);
                 controls.target.set(0, 0, 0);
                 controls.update();
+            });
+
+            // Info Modal Logic
+            const infoButton = document.getElementById('infoButton');
+            const infoModal = document.getElementById('infoModal');
+            const closeInfoModal = document.getElementById('closeInfoModal');
+
+            infoButton.addEventListener('click', () => {
+                infoModal.classList.add('show');
+            });
+
+            closeInfoModal.addEventListener('click', () => {
+                infoModal.classList.remove('show');
+            });
+
+            // Close modal if clicked outside content
+            infoModal.addEventListener('click', (event) => {
+                if (event.target === infoModal) {
+                    infoModal.classList.remove('show');
+                }
             });
         }
 
@@ -1546,8 +1825,11 @@
                 return;
             }
 
+            // Base size in world units
             const basePointSize = 0.0245;
-            const initialDensity = 20;
+            const initialDensity = 20; // Reference density for scaling
+
+            // Calculate point size: inversely proportional to density, scaled by pointSizeFactor
             const pointSize = (basePointSize * (initialDensity / density)) * pointSizeFactor;
 
             const pointGeometry = new THREE.BufferGeometry();
@@ -1560,7 +1842,8 @@
                 transparent: true,
                 opacity: 0.8,
                 map: circleTexture,
-                alphaTest: 0.1
+                alphaTest: 0 // Keep alphaTest at 0 to prevent points from disappearing when very small
+                // sizeAttenuation is true by default, so no need to explicitly set it
             });
 
             pointsMesh = new THREE.Points(pointGeometry, pointMaterial);
@@ -1618,4 +1901,4 @@
         };
     </script>
 </body>
-</html></script>
+</html>
