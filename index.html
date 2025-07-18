@@ -171,11 +171,33 @@
             display: none;
             z-index: 10;
         }
+        .camera-controls {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            margin-bottom: -0.5rem; /* Adjust to pull it closer to canvas if needed */
+            width: 95%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .camera-controls .button-group-single {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+            width: 100%; /* Make buttons take full available width in their container */
+        }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
     <div id="coordinatesDisplayDiv"></div>
+
+    <div class="camera-controls">
+        <button id="zoomInBtn" class="button-group-single">Zoom In</button>
+        <button id="zoomOutBtn" class="button-group-single">Zoom Out</button>
+        <button id="resetCameraBtn" class="button-group-single">Reset Camera</button>
+    </div>
 
     <div class="controls-container">
 
@@ -787,6 +809,26 @@
 
                 createVisualization();
                 updateDisplay();
+            });
+
+            // New Camera Controls
+            document.getElementById('zoomInBtn').addEventListener('click', () => {
+                const zoomFactor = 0.8; // More powerful zoom in
+                camera.position.multiplyScalar(zoomFactor);
+                controls.update();
+            });
+
+            document.getElementById('zoomOutBtn').addEventListener('click', () => {
+                const zoomFactor = 1 / 0.8; // Reciprocal of zoomInFactor
+                camera.position.multiplyScalar(zoomFactor);
+                controls.update();
+            });
+
+            document.getElementById('resetCameraBtn').addEventListener('click', () => {
+                camera.position.set(0, 0, 3.33);
+                camera.lookAt(0, 0, 0);
+                controls.target.set(0, 0, 0);
+                controls.update();
             });
         }
 
@@ -1576,4 +1618,4 @@
         };
     </script>
 </body>
-</html>
+</html></script>
