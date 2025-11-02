@@ -411,20 +411,8 @@
     <div id="infoModal">
         <div class="info-content">
             <button id="closeInfoModal">×</button>
-            <h2>About This Project: Quaternion Mapping Visualization</h2>
-            <p>
-                This interactive tool allows you to visualize how a set of input quaternions (4D numbers with a real part 'w' and imaginary parts 'x', 'y', 'z') are transformed by a user-defined function. You can choose different initial arrangements of points in 3D space (representing the 'x', 'y', 'z' components of the input quaternions, with 'w' being a fixed value or varying in 4D grid).
-            </p>
-            <p>
-                The color of each point represents its 'w' component (real part). Blue indicates lower 'w' values, while red indicates higher 'w' values. This color mapping applies to both the original and mapped views, allowing you to observe how the 'w' component changes after the transformation.
-            </p>
-            <h3>What it's doing:</h3>
-            <p>
-                The application takes a set of input quaternions based on your chosen arrangement (e.g., a 3D grid, a 2D plane, a sphere, etc.). For each input quaternion, it applies the function you define in the "Function" input field. The result is a new, "mapped" quaternion. The visualization then displays either the original set of points or the mapped set of points in 3D space, with their colors indicating their 'w' component.
-            </p>
-            <p>
-                This helps in understanding the geometric interpretation of various quaternion operations and how they deform or transform space.
-            </p>
+            
+            
             <h3>Complex Example Functions:</h3>
             <ul>
                 <li><code>q * i * q</code>: A non-commutative product that can lead to interesting rotations and scaling.</li>
@@ -436,7 +424,7 @@
                 <li><code>(q^3 + 2*q) / (q + 1)</code>: A more elaborate polynomial-like expression.</li>
             </ul>
             <p>
-                Experiment with different functions and starting arrangements to explore the rich behavior of quaternion algebra!
+                Experiment with different functions and starting arrangements to get interesting structures.
             </p>
         </div>
     </div>
